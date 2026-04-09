@@ -16,7 +16,7 @@ import { Navbar } from "@/components/dashboard/navbar"
 import { EventMap, type EventLocation } from "@/components/dashboard/event-map"
 import { MOCK_EVENTS, MOCK_LAST_MINUTE } from "@/lib/mock-data"
 
-const API_BASE_URL = "http://localhost:8080/api/v1"
+import { API_BASE_URL } from "@/lib/api/client"
 
 export default function HomePage() {
   const [events, setEvents] = useState<EventLocation[]>(MOCK_EVENTS)

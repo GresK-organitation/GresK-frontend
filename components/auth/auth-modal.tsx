@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import {
   Dialog,
@@ -9,10 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-
-const API_BASE_URL = "http://localhost:8080/api/v1"
+import { API_BASE_URL } from "@/lib/api/client"
 
 interface AuthModalProps {
   open: boolean
@@ -29,30 +28,20 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="login" className="mt-1">
-          <TabsList className="grid w-full grid-cols-2 rounded-full bg-gray-100 p-1">
-            <TabsTrigger
-              value="login"
-              className="rounded-full text-xs font-bold uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
-            >
-              Acceder
-            </TabsTrigger>
-            <TabsTrigger
-              value="register"
-              className="rounded-full text-xs font-bold uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:text-black data-[state=active]:shadow-sm"
-            >
-              Registrarse
-            </TabsTrigger>
-          </TabsList>
+        <LoginForm onClose={onClose} />
 
-          <TabsContent value="login">
-            <LoginForm onClose={onClose} />
-          </TabsContent>
-
-          <TabsContent value="register">
-            <RegisterForm onClose={onClose} />
-          </TabsContent>
-        </Tabs>
+        <div className="mt-2 border-t border-gray-100 pt-4">
+          <p className="text-center text-xs text-gray-400">
+            ¿Primera vez?{" "}
+            <Link
+              href="/registro"
+              onClick={onClose}
+              className="font-bold text-black underline underline-offset-2"
+            >
+              Crear cuenta →
+            </Link>
+          </p>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -162,105 +151,6 @@ function LoginForm({ onClose }: { onClose: () => void }) {
         </Button>
       </div>
 
-      <p className="pt-4 text-center text-xs text-gray-400">
-        ¿Eres promotora?{" "}
-        <a
-          href="/trabaja-con-nosotros"
-          className="font-semibold text-black underline underline-offset-2"
-          onClick={onClose}
-        >
-          Regístrate aquí
-        </a>
-      </p>
-    </form>
-  )
-}
-
-function RegisterForm({ onClose }: { onClose: () => void }) {
-  const router = useRouter()
-  const { login } = useAuth()
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, role: "user" }),
-      })
-      if (!res.ok) {
-        login("user")
-        onClose()
-        router.push("/feed")
-        return
-      }
-      login("user")
-      onClose()
-      router.push("/feed")
-    } catch {
-      login("user")
-      onClose()
-      router.push("/feed")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="mt-4 space-y-0">
-      <FormField
-        id="reg-name"
-        label="Nombre"
-        placeholder="Tu nombre"
-        value={name}
-        onChange={setName}
-        required
-      />
-      <FormField
-        id="reg-email"
-        label="Correo electrónico"
-        type="email"
-        placeholder="tu@email.com"
-        value={email}
-        onChange={setEmail}
-        required
-      />
-      <FormField
-        id="reg-password"
-        label="Contraseña"
-        type="password"
-        placeholder="Mínimo 8 caracteres"
-        value={password}
-        onChange={setPassword}
-        required
-        minLength={8}
-      />
-
-      <div className="pt-5">
-        <Button
-          type="submit"
-          disabled={loading}
-          className="w-full rounded-full bg-black text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-40"
-        >
-          {loading ? "Creando cuenta…" : "Crear cuenta"}
-        </Button>
-      </div>
-
-      <p className="pt-4 text-center text-xs text-gray-400">
-        ¿Eres promotora?{" "}
-        <a
-          href="/trabaja-con-nosotros"
-          className="font-semibold text-black underline underline-offset-2"
-          onClick={onClose}
-        >
-          Regístrate aquí
-        </a>
-      </p>
     </form>
   )
 }
