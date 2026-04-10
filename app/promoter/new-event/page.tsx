@@ -4,6 +4,8 @@ import { useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
+import { createEvent } from "@/lib/api/events"
+import { ApiException } from "@/lib/api/client"
 import {
   ChevronLeft,
   Plus,
@@ -28,23 +30,17 @@ import {
 
 // ── Datos mock ──────────────────────────────────────────────────────────────
 
-const GENRES = [
-  "Rock",
-  "Indie",
-  "Pop",
-  "Electrónica",
-  "Techno",
-  "House",
-  "Jazz",
-  "Hip-Hop",
-  "Folk",
-  "Metal",
-  "Funk",
-  "Soul",
-  "Flamenco",
-  "Experimental",
-  "Reggae",
-  "Classical",
+const GENRES: { label: string; value: string }[] = [
+  { label: "Rock",        value: "ROCK" },
+  { label: "Indie",       value: "INDIE" },
+  { label: "Pop",         value: "POP" },
+  { label: "Electrónica", value: "ELECTRONIC" },
+  { label: "Jazz",        value: "JAZZ" },
+  { label: "Hip-Hop",     value: "HIP_HOP" },
+  { label: "Clásica",     value: "CLASSICAL" },
+  { label: "Flamenco",    value: "FLAMENCO" },
+  { label: "Reggaeton",   value: "REGGAETON" },
+  { label: "Sorpresa",    value: "SURPRISE" },
 ]
 
 const TIME_SLOTS = [
@@ -65,7 +61,8 @@ type Step = 1 | 2 | 3 | 4 | 5
 interface EventDraft {
   title: string
   artists: string[]
-  genres: string[]
+  genre: string
+  city: string
   venue: string
   address: string
   date: string
@@ -86,7 +83,8 @@ export default function NewEventPage() {
   const [draft, setDraft] = useState<EventDraft>({
     title: "",
     artists: [],
-    genres: [],
+    genre: "",
+    city: "",
     venue: "",
     address: "",
     date: "",
@@ -106,18 +104,41 @@ export default function NewEventPage() {
   const goBack = () => step > 1 && setStep((step - 1) as Step)
   const goNext = () => step < 5 && setStep((step + 1) as Step)
 
+  const [publishing, setPublishing] = useState(false)
+  const [publishError, setPublishError] = useState<string | null>(null)
+
   // Validaciones mínimas por paso
   const stepValid: Record<Step, boolean> = {
-    1: draft.title.trim().length > 0 && draft.artists.length > 0 && draft.genres.length > 0,
-    2: draft.venue.trim().length > 0 && draft.date.length > 0 && draft.time.length > 0,
+    1: draft.title.trim().length > 0 && draft.artists.length > 0 && draft.genre !== "",
+    2: draft.venue.trim().length > 0 && draft.city.trim().length > 0 && draft.date.length > 0 && draft.time.length > 0,
     3: draft.posterUrl !== null && draft.description.trim().length > 0,
     4: draft.price.trim().length > 0 && draft.capacity.trim().length > 0,
     5: true,
   }
 
-  function handlePublish() {
-    // En real: POST al backend
-    router.push("/promoter")
+  async function handlePublish() {
+    setPublishing(true)
+    setPublishError(null)
+    try {
+      await createEvent({
+        title: draft.title,
+        genre: draft.genre,
+        price: parseFloat(draft.price),
+        currency: "EUR",
+        totalCapacity: parseInt(draft.capacity, 10),
+        city: draft.city,
+        address: draft.address,
+        venue: draft.venue || undefined,
+        eventDate: `${draft.date}T${draft.time}:00`,
+      })
+      router.push("/promoter")
+    } catch (err) {
+      setPublishError(
+        err instanceof ApiException ? err.message : "Error de red. Inténtalo de nuevo.",
+      )
+    } finally {
+      setPublishing(false)
+    }
   }
 
   return (
@@ -173,37 +194,49 @@ export default function NewEventPage() {
 
       {/* ── Footer CTA ── */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white p-6">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
-          {step > 1 && (
-            <button
-              onClick={goBack}
-              className="flex h-14 items-center justify-center rounded-full border border-gray-300 bg-white px-6 text-sm font-bold uppercase tracking-widest text-black transition-all hover:border-black"
-            >
-              Atrás
-            </button>
+        <div className="mx-auto max-w-3xl">
+          {step === 5 && publishError && (
+            <p className="mb-4 text-center text-sm font-semibold text-red-600">
+              {publishError}
+            </p>
           )}
-          {step < 5 ? (
-            <button
-              onClick={goNext}
-              disabled={!stepValid[step]}
-              className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${
-                stepValid[step]
-                  ? "bg-black text-white hover:bg-gray-800"
-                  : "cursor-not-allowed bg-gray-200 text-gray-400"
-              }`}
-            >
-              Siguiente
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handlePublish}
-              className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-black text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800"
-            >
-              Publicar evento
-              <Zap className="h-4 w-4" />
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {step > 1 && (
+              <button
+                onClick={goBack}
+                className="flex h-14 items-center justify-center rounded-full border border-gray-300 bg-white px-6 text-sm font-bold uppercase tracking-widest text-black transition-all hover:border-black"
+              >
+                Atrás
+              </button>
+            )}
+            {step < 5 ? (
+              <button
+                onClick={goNext}
+                disabled={!stepValid[step]}
+                className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${
+                  stepValid[step]
+                    ? "bg-black text-white hover:bg-gray-800"
+                    : "cursor-not-allowed bg-gray-200 text-gray-400"
+                }`}
+              >
+                Siguiente
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${
+                  publishing
+                    ? "cursor-not-allowed bg-gray-400 text-white"
+                    : "bg-black text-white hover:bg-gray-800"
+                }`}
+              >
+                {publishing ? "Publicando…" : "Publicar evento"}
+                {!publishing && <Zap className="h-4 w-4" />}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -242,13 +275,8 @@ function Step1Basic({
       draft.artists.filter((a) => a !== name),
     )
 
-  const toggleGenre = (g: string) =>
-    update(
-      "genres",
-      draft.genres.includes(g)
-        ? draft.genres.filter((x) => x !== g)
-        : [...draft.genres, g],
-    )
+  const selectGenre = (value: string) =>
+    update("genre", draft.genre === value ? "" : value)
 
   return (
     <div>
@@ -332,25 +360,27 @@ function Step1Basic({
       {/* Géneros */}
       <div className="mt-8">
         <div className="mb-2 flex items-center justify-between">
-          <Label>Géneros musicales</Label>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-            {draft.genres.length} seleccionados
-          </span>
+          <Label>Género musical</Label>
+          {draft.genre && (
+            <span className="text-[10px] font-bold uppercase tracking-widest text-black">
+              {GENRES.find((g) => g.value === draft.genre)?.label}
+            </span>
+          )}
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {GENRES.map((g) => {
-            const selected = draft.genres.includes(g)
+            const selected = draft.genre === g.value
             return (
               <button
-                key={g}
-                onClick={() => toggleGenre(g)}
+                key={g.value}
+                onClick={() => selectGenre(g.value)}
                 className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-sm font-semibold transition-all ${
                   selected
                     ? "border-black bg-black text-white"
                     : "border-gray-300 bg-white text-black hover:border-black"
                 }`}
               >
-                <span>{g}</span>
+                <span>{g.label}</span>
                 {selected ? (
                   <Check className="h-4 w-4" />
                 ) : (
@@ -410,7 +440,21 @@ function Step2Place({
             type="text"
             value={draft.address}
             onChange={(e) => update("address", e.target.value)}
-            placeholder="Calle, número, ciudad"
+            placeholder="Calle y número"
+            className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Ciudad */}
+      <div className="mt-4">
+        <Label>Ciudad</Label>
+        <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+          <input
+            type="text"
+            value={draft.city}
+            onChange={(e) => update("city", e.target.value)}
+            placeholder="Ej: Barcelona"
             className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
           />
         </div>
@@ -806,7 +850,7 @@ function Step5Review({
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6">
               <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-black">
-                {draft.genres[0] ?? "Género"}
+                {GENRES.find((g) => g.value === draft.genre)?.label ?? "Género"}
               </span>
               <h2 className="mt-2 text-3xl font-black leading-tight text-white md:text-4xl">
                 {draft.title || "Sin título"}
@@ -857,13 +901,13 @@ function Step5Review({
         <SummaryRow
           icon={Tag}
           label="Datos básicos"
-          value={`${draft.title || "—"} · ${draft.genres.length} géneros`}
+          value={`${draft.title || "—"} · ${GENRES.find((g) => g.value === draft.genre)?.label ?? "Sin género"}`}
           onEdit={() => onEdit(1)}
         />
         <SummaryRow
           icon={MapPin}
           label="Lugar y fecha"
-          value={`${draft.venue || "—"} · ${formatDate(draft.date)} ${draft.time || ""}`}
+          value={`${draft.venue || "—"} · ${draft.city || "—"} · ${formatDate(draft.date)} ${draft.time || ""}`}
           onEdit={() => onEdit(2)}
         />
         <SummaryRow
