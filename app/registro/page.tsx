@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ChevronLeft, ArrowRight, Check, MapPin, User, Music2 } from "lucide-react"
@@ -11,10 +11,23 @@ import { ApiException } from "@/lib/api/client"
 
 // ── Datos ────────────────────────────────────────────────────────────────────
 
-const GENRES = [
-  "Rock", "Indie", "Pop", "Electrónica", "Jazz", "Hip-Hop",
-  "Folk", "Metal", "Funk", "Soul", "Reggaeton", "Flamenco",
-  "R&B", "Techno", "House", "Experimental", "Punk", "Clásica",
+const GENRES: { label: string; value: string }[] = [
+  { label: "Rock",       value: "ROCK" },
+  { label: "Indie",      value: "INDIE" },
+  { label: "Pop",        value: "POP" },
+  { label: "Electrónica",value: "ELECTRONIC" },
+  { label: "Jazz",       value: "JAZZ" },
+  { label: "Hip-Hop",    value: "HIP_HOP" },
+  { label: "Metal",      value: "METAL" },
+  { label: "Trap",       value: "TRAP" },
+  { label: "Reggaeton",  value: "REGGAETON" },
+  { label: "Flamenco",   value: "FLAMENCO" },
+  { label: "R&B",        value: "R_AND_B" },
+  { label: "Techno",     value: "TECHNO" },
+  { label: "House",      value: "HOUSE" },
+  { label: "Punk",       value: "PUNK" },
+  { label: "Latin Jazz", value: "LATIN_JAZZ" },
+  { label: "Clásica",    value: "CLASSICAL" },
 ]
 
 const CITIES = [
@@ -43,6 +56,7 @@ export default function RegistroPage() {
   const [customCity, setCustomCity] = useState("")
   const [genres, setGenres] = useState<string[]>([])
   const [bio, setBio] = useState("")
+  const [avatar, setAvatar] = useState<File | null>(null)
 
   const progressPct = (step / TOTAL_STEPS) * 100
   const goBack = () => step > 1 && setStep((s) => s - 1)
@@ -67,14 +81,17 @@ export default function RegistroPage() {
     const finalCity = city === "Otra ciudad" ? customCity : city
 
     try {
-      const { accountId } = await registerUser({
-        email,
-        password,
-        name,
-        description: bio,
-        city: finalCity,
-        musicGenres: genres,
-      })
+      const { accountId } = await registerUser(
+        {
+          email,
+          password,
+          name,
+          description: bio,
+          city: finalCity,
+          musicGenres: genres,
+        },
+        avatar ?? undefined
+      )
       login("user", accountId)
       router.push("/feed")
     } catch (err) {
@@ -164,7 +181,7 @@ export default function RegistroPage() {
           <StepGenres genres={genres} toggle={toggleGenre} />
         )}
         {step === 4 && (
-          <StepBio bio={bio} setBio={setBio} />
+          <StepBio bio={bio} setBio={setBio} avatar={avatar} setAvatar={setAvatar} />
         )}
       </main>
 
@@ -356,13 +373,13 @@ function StepGenres({
       </div>
 
       <div className="mt-8 flex flex-wrap gap-3">
-        {GENRES.map((g) => {
-          const selected = genres.includes(g)
+        {GENRES.map(({ label, value }) => {
+          const selected = genres.includes(value)
           return (
             <button
-              key={g}
+              key={value}
               type="button"
-              onClick={() => toggle(g)}
+              onClick={() => toggle(value)}
               className={`flex items-center gap-2 rounded-full border px-5 py-3 text-sm font-bold transition-all ${
                 selected
                   ? "border-black bg-black text-white"
@@ -370,7 +387,7 @@ function StepGenres({
               }`}
             >
               {selected && <Check className="h-3.5 w-3.5 shrink-0" />}
-              {g}
+              {label}
             </button>
           )
         })}
@@ -379,10 +396,24 @@ function StepGenres({
   )
 }
 
-// ── Paso 4: Bio ───────────────────────────────────────────────────────────────
+// ── Paso 4: Bio + Avatar ──────────────────────────────────────────────────────
 
-function StepBio({ bio, setBio }: { bio: string; setBio: (v: string) => void }) {
+function StepBio({
+  bio, setBio, avatar, setAvatar,
+}: {
+  bio: string; setBio: (v: string) => void
+  avatar: File | null; setAvatar: (f: File | null) => void
+}) {
   const MAX = 160
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [preview, setPreview] = useState<string | null>(null)
+
+  function handleFile(file: File | undefined) {
+    if (!file) return
+    setAvatar(file)
+    setPreview(URL.createObjectURL(file))
+  }
+
   return (
     <div>
       <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black">
@@ -395,7 +426,52 @@ function StepBio({ bio, setBio }: { bio: string; setBio: (v: string) => void }) 
         Opcional, pero los mejores perfiles siempre tienen algo que decir.
       </p>
 
-      <div className="mt-10">
+      {/* Avatar */}
+      <div className="mt-10 flex items-center gap-5">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-dashed border-gray-300 bg-gray-50 transition-colors hover:border-black"
+        >
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="avatar" className="h-full w-full object-cover grayscale" />
+          ) : (
+            <User className="h-8 w-8 text-gray-300" />
+          )}
+        </button>
+        <div>
+          <p className="text-sm font-bold text-black">
+            {avatar ? avatar.name : "Añade una foto de perfil"}
+          </p>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-1 text-xs font-semibold text-gray-500 underline underline-offset-2 hover:text-black"
+          >
+            {avatar ? "Cambiar imagen" : "Subir imagen"}
+          </button>
+          {avatar && (
+            <button
+              type="button"
+              onClick={() => { setAvatar(null); setPreview(null) }}
+              className="ml-3 text-xs font-semibold text-gray-400 underline underline-offset-2 hover:text-black"
+            >
+              Eliminar
+            </button>
+          )}
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+      </div>
+
+      {/* Bio */}
+      <div className="mt-8">
         <div className="rounded-3xl border border-gray-200 bg-gray-50 p-6">
           <textarea
             value={bio}

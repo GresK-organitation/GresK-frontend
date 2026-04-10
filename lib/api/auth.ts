@@ -15,6 +15,23 @@ export interface RegisterUserResponse {
   accountId: string
 }
 
+export interface RegisterPromoterPayload {
+  email: string
+  password: string
+  name: string
+  street: string
+  city: string
+  country: string
+  description?: string
+  musicalGenres: string[]
+  phone?: string
+  website?: string
+}
+
+export interface RegisterPromoterResponse {
+  accountId: string
+}
+
 // ── Registro de usuario ──────────────────────────────────────────────────────
 
 /**
@@ -29,16 +46,65 @@ export interface RegisterUserResponse {
  * el navegador genere el boundary correcto automáticamente.
  */
 export async function registerUser(
-  payload: RegisterUserPayload
+  payload: RegisterUserPayload,
+  avatar?: File
 ): Promise<RegisterUserResponse> {
-  const formData = new FormData()
+  const formData = new FormData();
+
+  const cleanPayload = {
+    ...payload,
+    description: payload.description || "",
+    musicGenres: payload.musicGenres || [],
+  };
+
   formData.append(
     "data",
-    new Blob([JSON.stringify(payload)], { type: "application/json" })
-  )
-  // "avatar" se omite — es opcional en el backend (@RequestPart required = false)
+    new Blob([JSON.stringify(cleanPayload)], { type: "application/json" })
+  );
 
-  const res = await fetch(`${API_BASE_URL}/auth/register/user`, {
+  if (avatar) {
+    formData.append("avatar", avatar);
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/register/user`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error desconocido")
+  }
+
+  return res.json() as Promise<RegisterUserResponse>
+}
+
+// ── Registro de promotora ────────────────────────────────────────────────────
+
+export async function registerPromoter(
+  payload: RegisterPromoterPayload,
+  logo?: File
+): Promise<RegisterPromoterResponse> {
+  const formData = new FormData()
+
+  const cleanPayload = {
+    ...payload,
+    description: payload.description ?? "",
+    musicalGenres: payload.musicalGenres ?? [],
+    phone: payload.phone ?? null,
+    website: payload.website ?? null,
+  }
+
+  formData.append(
+    "data",
+    new Blob([JSON.stringify(cleanPayload)], { type: "application/json" })
+  )
+
+  if (logo) {
+    formData.append("logo", logo)
+  }
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/register/promoter`, {
     method: "POST",
     body: formData,
   })
@@ -48,5 +114,5 @@ export async function registerUser(
     throw new ApiException(res.status, body.error ?? "Error desconocido")
   }
 
-  return res.json() as Promise<RegisterUserResponse>
+  return res.json() as Promise<RegisterPromoterResponse>
 }

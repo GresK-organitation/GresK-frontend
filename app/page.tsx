@@ -24,7 +24,7 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchEvents() {
       try {
-        const res = await fetch(`${API_BASE_URL}/events`)
+        const res = await fetch(`${API_BASE_URL}/api/v1/events`)
         const data = await res.json()
         if (Array.isArray(data) && data.length > 0) {
           setEvents(data)
