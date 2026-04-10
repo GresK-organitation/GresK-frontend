@@ -597,38 +597,39 @@ export const MOCK_REVIEWS: Review[] = [
 
 // ── Promotora: Artistas ─────────────────────────────────────────────────────
 
-export type ArtistStatus = "confirmed" | "negotiating" | "available" | "inactive"
+export type ArtistStatus = "CONFIRMED" | "NEGOTIATING" | "AVAILABLE" | "INACTIVE"
 
 export interface PromoterArtist {
-  id: number
+  id: string          // UUID devuelto por el backend
+  promoterId?: string
   name: string
   imageUrl: string
   genres: string[]
   origin: string
   bio: string
   status: ArtistStatus
-  fee: string        // caché aproximado
+  fee: string         // caché aproximado
   eventsPlayed: number
-  avgRating: number
-  followers: string  // seguidores en redes
-  contact: string    // email o manager
+  avgRating?: number  // no existe en el backend; reservado para uso futuro
+  followers: string   // seguidores en redes
+  contact: string     // email o manager
   socialSpotify?: string
   socialInstagram?: string
-  tags: string[]     // etiquetas libres
-  nextEventId?: number
+  tags: string[]      // etiquetas libres
+  nextEventId?: string
   createdAt: string
 }
 
 export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
   {
-    id: 2001,
+    id: "mock-2001",
     name: "The Velvet Echoes",
     imageUrl:
       "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=800&q=80",
     genres: ["Indie", "Alternative", "Shoegaze"],
     origin: "Barcelona, ES",
     bio: "Cuarteto barcelonés que mezcla el shoegaze de los 90 con producción electrónica contemporánea. Formados en 2018, han publicado dos EPs y un LP aclamado por la crítica.",
-    status: "confirmed",
+    status: "CONFIRMED",
     fee: "1.500–2.500€",
     eventsPlayed: 4,
     avgRating: 4.7,
@@ -637,18 +638,17 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     socialSpotify: "#",
     socialInstagram: "#",
     tags: ["directo potente", "rider sencillo", "bilingüe"],
-    nextEventId: 1001,
     createdAt: "2025-09-12",
   },
   {
-    id: 2002,
+    id: "mock-2002",
     name: "Noa Vidal",
     imageUrl:
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80",
     genres: ["Electronic", "Techno", "Ambient"],
     origin: "Valencia, ES",
     bio: "DJ y productora residente en Valencia. Su sonido transita entre el techno industrial y el ambient más cinematográfico. Habitual en los mejores clubs del circuito europeo.",
-    status: "confirmed",
+    status: "CONFIRMED",
     fee: "800–1.200€",
     eventsPlayed: 6,
     avgRating: 4.9,
@@ -657,18 +657,17 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     socialSpotify: "#",
     socialInstagram: "#",
     tags: ["set 3h", "equipo propio", "exclusividad"],
-    nextEventId: 1001,
     createdAt: "2025-11-03",
   },
   {
-    id: 2003,
+    id: "mock-2003",
     name: "Cesc & La Banda",
     imageUrl:
       "https://images.unsplash.com/photo-1501386761578-eaa54b4a6db5?w=800&q=80",
     genres: ["Folk", "Indie", "Americana"],
     origin: "Girona, ES",
     bio: "Cesc Puig lidera este sexteto de folk mediterráneo. Sus actuaciones en directo son conocidas por la energía desbordante y la conexión con el público.",
-    status: "negotiating",
+    status: "NEGOTIATING",
     fee: "1.000–1.800€",
     eventsPlayed: 2,
     avgRating: 4.5,
@@ -679,14 +678,14 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2026-01-20",
   },
   {
-    id: 2004,
+    id: "mock-2004",
     name: "Kiara Moon",
     imageUrl:
       "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
     genres: ["Soul", "R&B", "Jazz"],
     origin: "Madrid, ES",
     bio: "Voz prodigiosa del soul español. Con influencias de Amy Winehouse y Erykah Badu, Kiara ha actuado en festivales internacionales y colaborado con artistas de primer nivel.",
-    status: "available",
+    status: "AVAILABLE",
     fee: "2.000–3.500€",
     eventsPlayed: 1,
     avgRating: 5.0,
@@ -698,14 +697,14 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2026-02-14",
   },
   {
-    id: 2005,
+    id: "mock-2005",
     name: "DJ Lúmen",
     imageUrl:
       "https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=800&q=80",
     genres: ["House", "Electronic", "Disco"],
     origin: "Barcelona, ES",
     bio: "Residente histórico en el circuito de clubs de Barcelona. Más de 15 años haciendo bailar a las mejores salas de la ciudad con su house melódico.",
-    status: "available",
+    status: "AVAILABLE",
     fee: "600–900€",
     eventsPlayed: 8,
     avgRating: 4.4,
@@ -716,14 +715,14 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2025-07-30",
   },
   {
-    id: 2006,
+    id: "mock-2006",
     name: "Ester Fontaine",
     imageUrl:
       "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?w=800&q=80",
     genres: ["Indie Pop", "Dream Pop", "Synth"],
     origin: "Lyon, FR",
     bio: "Cantautora franco-catalana afincada en Barcelona. Su pop etéreo con sintetizadores analógicos la ha convertido en una de las revelaciones del circuito indie europeo.",
-    status: "inactive",
+    status: "INACTIVE",
     fee: "1.200–2.000€",
     eventsPlayed: 3,
     avgRating: 4.6,

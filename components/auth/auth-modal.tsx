@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { API_BASE_URL } from "@/lib/api/client"
+import { API_BASE_URL, setToken } from "@/lib/api/client"
 
 interface AuthModalProps {
   open: boolean
@@ -92,29 +92,32 @@ function LoginForm({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError(null)
     try {
       const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role: "user" }),
+        body: JSON.stringify({ email, password }),
       })
       if (!res.ok) {
-        login("user")
-        onClose()
-        router.push("/feed")
+        setError("Email o contraseña incorrectos")
+        setLoading(false)
         return
       }
-      login("user")
+      const { token } = await res.json()
+      setToken(token)
+      const payload = JSON.parse(atob(token.split(".")[1]))
+      const role = payload.roles?.includes("ROLE_PROMOTER") ? "promoter" : "user"
+      login(role)
       onClose()
-      router.push("/feed")
+      router.push(role === "promoter" ? "/promoter" : "/feed")
     } catch {
-      login("user")
-      onClose()
-      router.push("/feed")
+      setError("Error de red. Inténtalo de nuevo.")
     } finally {
       setLoading(false)
     }
@@ -140,6 +143,12 @@ function LoginForm({ onClose }: { onClose: () => void }) {
         onChange={setPassword}
         required
       />
+
+      {error && (
+        <p className="pt-4 text-center text-xs font-semibold text-red-600">
+          {error}
+        </p>
+      )}
 
       <div className="pt-5">
         <Button

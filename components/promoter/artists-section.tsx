@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -24,28 +24,28 @@ import {
   Filter,
 } from "lucide-react"
 import {
-  MOCK_PROMOTER_ARTISTS,
   type PromoterArtist,
   type ArtistStatus,
 } from "@/lib/mock-data"
+import { fetchMyArtists, deleteArtist } from "@/lib/api/artists"
 
 // ── Status meta ─────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<ArtistStatus, { label: string; className: string }> =
   {
-    confirmed: {
+    CONFIRMED: {
       label: "Confirmado",
       className: "border-black bg-black text-white",
     },
-    negotiating: {
+    NEGOTIATING: {
       label: "Negociando",
       className: "border-black bg-white text-black",
     },
-    available: {
+    AVAILABLE: {
       label: "Disponible",
       className: "border-gray-300 bg-gray-50 text-gray-700",
     },
-    inactive: {
+    INACTIVE: {
       label: "Inactivo",
       className: "border-gray-200 bg-white text-gray-400",
     },
@@ -66,16 +66,23 @@ const GENRE_FILTERS = [
 const ARTISTS_PER_PAGE = 3
 
 export function ArtistsSection() {
-  const [artists, setArtists] = useState<PromoterArtist[]>(
-    MOCK_PROMOTER_ARTISTS,
-  )
+  const [artists, setArtists] = useState<PromoterArtist[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<ArtistStatus | "all">("all")
   const [genreFilter, setGenreFilter] = useState("Todos")
   const [sortBy, setSortBy] = useState<"name" | "rating" | "events">("name")
-  const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [artistsPage, setArtistsPage] = useState(1)
+
+  useEffect(() => {
+    fetchMyArtists()
+      .then((data) => setArtists(data as PromoterArtist[]))
+      .catch(() => setLoadError("No se pudieron cargar los artistas"))
+      .finally(() => setLoading(false))
+  }, [])
 
   const filtered = useMemo(() => {
     return artists
@@ -96,7 +103,7 @@ export function ArtistsSection() {
         return matchSearch && matchStatus && matchGenre
       })
       .sort((a, b) => {
-        if (sortBy === "rating") return b.avgRating - a.avgRating
+        if (sortBy === "rating") return (b.avgRating ?? 0) - (a.avgRating ?? 0)
         if (sortBy === "events") return b.eventsPlayed - a.eventsPlayed
         return a.name.localeCompare(b.name)
       })
@@ -108,9 +115,15 @@ export function ArtistsSection() {
     artistsPage * ARTISTS_PER_PAGE,
   )
 
-  function handleDelete(id: number) {
-    setArtists((prev) => prev.filter((a) => a.id !== id))
-    setDeleteId(null)
+  async function handleDelete(id: string) {
+    try {
+      await deleteArtist(id)
+      setArtists((prev) => prev.filter((a) => a.id !== id))
+    } catch {
+      // el artista permanece en la lista si falla el borrado
+    } finally {
+      setDeleteId(null)
+    }
   }
 
   return (
@@ -128,7 +141,11 @@ export function ArtistsSection() {
             Tus artistas
           </h2>
           <p className="mt-1 text-sm font-medium text-gray-500">
-            {artists.length} artistas · {artists.filter((a) => a.status === "confirmed").length} confirmados
+            {loading
+              ? "Cargando…"
+              : loadError
+                ? loadError
+                : `${artists.length} artistas · ${artists.filter((a) => a.status === "CONFIRMED").length} confirmados`}
           </p>
         </div>
         <Link

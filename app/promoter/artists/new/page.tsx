@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
+import { createArtist } from "@/lib/api/artists"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -96,9 +97,38 @@ export default function NewArtistPage() {
   const update = <K extends keyof ArtistDraft>(k: K, v: ArtistDraft[K]) =>
     setDraft((p) => ({ ...p, [k]: v }))
 
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const progress = (step / 4) * 100
   const goBack = () => step > 1 && setStep((step - 1) as Step)
   const goNext = () => step < 4 && setStep((step + 1) as Step)
+
+  async function handleSave() {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      await createArtist({
+        name: draft.name,
+        origin: draft.origin,
+        genres: draft.genres,
+        imageUrl: draft.imageUrl,
+        bio: draft.bio,
+        status: draft.status,
+        fee: draft.fee,
+        followers: draft.followers,
+        contact: draft.contact,
+        socialSpotify: draft.socialSpotify,
+        socialInstagram: draft.socialInstagram,
+        tags: draft.tags,
+      })
+      router.push("/promoter")
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Error al guardar el artista")
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const stepValid: Record<Step, boolean> = {
     1: draft.name.trim().length > 0 && draft.genres.length > 0,
@@ -179,12 +209,20 @@ export default function NewArtistPage() {
               Siguiente <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
-            <button
-              onClick={() => router.push("/promoter")}
-              className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-black text-sm font-bold uppercase tracking-widest text-white hover:bg-gray-800"
-            >
-              Guardar artista <Zap className="h-4 w-4" />
-            </button>
+            <div className="flex flex-1 flex-col gap-2">
+              {saveError && (
+                <p className="text-center text-xs font-semibold text-red-600">
+                  {saveError}
+                </p>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-full bg-black text-sm font-bold uppercase tracking-widest text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                {saving ? "Guardando…" : <>Guardar artista <Zap className="h-4 w-4" /></>}
+              </button>
+            </div>
           )}
         </div>
       </div>
