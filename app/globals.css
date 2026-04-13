@@ -1,26 +1,192 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ─────────────────────────────────────────────────────────────────────────
+   COLOR SYSTEM (Light Mode Default - Hybrid Luminoso)
+   ───────────────────────────────────────────────────────────────────────── */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+:root {
+  /* Base Colors (Monochrome - Pawstar/Channel D Style) */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --secondary: #f5f5f5;
+  --border: #e5e5e5;
+  --muted: #737373;
+
+  /* Accent Colors */
+  --accent-featured: #fbbf24; /* Featured event / Recommended */
+  --accent-featured-dark: #f59e0b;
+  --accent-surprise: #c084fc; /* Surprise concerts */
+  --accent-surprise-dark: #a855f7;
+  --accent-urgent: #ef4444; /* Last minute / Urgency */
+  --accent-urgent-dark: #dc2626;
+  --accent-success: #34d399; /* Tier progress / Success */
+  --accent-success-dark: #10b981;
+
+  /* Typography (Geist Sans stack) */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Font Weights */
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-black: 900;
+
+  /* Font Sizes (in rem) */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.875rem;
+  --text-4xl: 2.25rem;
+  --text-5xl: 3rem;
+
+  /* Line Heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.6;
+
+  /* Letter Spacing */
+  --tracking-tight: -0.01em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.025em;
+  --tracking-wider: 0.05em;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ─────────────────────────────────────────────────────────────────────────
+   DARK MODE OVERRIDES (Only when dark class is present)
+   ───────────────────────────────────────────────────────────────────────── */
+
+html.dark {
+  color-scheme: dark;
 }
+
+html.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --secondary: #1a1a1a;
+  --border: #333333;
+  --muted: #666666;
+
+  /* Darker accent variants */
+  --accent-featured: #fcd34d;
+  --accent-featured-dark: #fbbf24;
+  --accent-surprise: #d8b4fe;
+  --accent-surprise-dark: #c084fc;
+  --accent-urgent: #f87171;
+  --accent-urgent-dark: #ef4444;
+  --accent-success: #6ee7b7;
+  --accent-success-dark: #34d399;
+}
+
+/* Light mode is default, ensure it's used */
+html.light {
+  color-scheme: light;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   TAILWIND THEME INTEGRATION
+   ───────────────────────────────────────────────────────────────────────── */
+
+@theme inline {
+  /* Core Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-secondary: var(--secondary);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+
+  /* Accent Colors */
+  --color-yellow: {
+    400: var(--accent-featured);
+    500: var(--accent-featured-dark);
+  };
+  --color-purple: {
+    400: var(--accent-surprise);
+    500: var(--accent-surprise-dark);
+  };
+  --color-red: {
+    400: var(--accent-urgent);
+    500: var(--accent-urgent-dark);
+  };
+  --color-emerald: {
+    400: var(--accent-success);
+    500: var(--accent-success-dark);
+  };
+
+  /* Fonts */
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  /* Border Radius */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-full: 9999px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   BODY & GLOBAL STYLES
+   ───────────────────────────────────────────────────────────────────────── */
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-normal);
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Typography Scale */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  letter-spacing: var(--tracking-tight);
+}
+
+h1 {
+  font-size: var(--text-5xl);
+}
+
+h2 {
+  font-size: var(--text-4xl);
+}
+
+h3 {
+  font-size: var(--text-3xl);
+}
+
+h4 {
+  font-size: var(--text-2xl);
+}
+
+h5 {
+  font-size: var(--text-xl);
+}
+
+h6 {
+  font-size: var(--text-lg);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Remove default button styles */
+button {
+  font-family: inherit;
+}
+
+/* Accessibility: Focus visible */
+:focus-visible {
+  outline: 2px solid var(--accent-featured);
+  outline-offset: 2px;
 }
