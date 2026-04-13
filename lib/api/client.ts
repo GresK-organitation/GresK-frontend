@@ -11,3 +11,17 @@ export class ApiException extends Error {
     this.name = "ApiException"
   }
 }
+
+/** Fetch autenticado con Bearer token desde localStorage. */
+export async function authedFetch(
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const token = localStorage.getItem("gresk_token")
+  const headers = new Headers(options.headers)
+  if (token) headers.set("Authorization", `Bearer ${token}`)
+  if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json")
+  }
+  return fetch(`${API_BASE_URL}${path}`, { ...options, headers })
+}

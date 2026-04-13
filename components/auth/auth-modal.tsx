@@ -100,17 +100,23 @@ function LoginForm({ onClose }: { onClose: () => void }) {
       const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role: "user" }),
+        body: JSON.stringify({ email, password }),
       })
-      if (!res.ok) {
+      if (res.ok) {
+        const data = await res.json()
+        const token: string | undefined = data.token
+        const roles: string[] = data.roles ?? []
+        const role: "promoter" | "user" = roles.includes("PROMOTER") ? "promoter" : "user"
+        const accountId: string | undefined = data.accountId
+        login(role, accountId, token)
+        onClose()
+        router.push(role === "promoter" ? "/promoter" : "/feed")
+      } else {
+        // fallback offline-tolerant
         login("user")
         onClose()
         router.push("/feed")
-        return
       }
-      login("user")
-      onClose()
-      router.push("/feed")
     } catch {
       login("user")
       onClose()

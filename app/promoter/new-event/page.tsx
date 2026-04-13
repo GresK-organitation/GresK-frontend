@@ -24,38 +24,33 @@ import {
   Trash2,
   FileText,
   Ticket,
+  Navigation,
 } from "lucide-react"
+import { createEvent, publishEvent } from "@/lib/api/events"
 
-// ── Datos mock ──────────────────────────────────────────────────────────────
+// ── Géneros (label → valor enum backend) ────────────────────────────────────
 
-const GENRES = [
-  "Rock",
-  "Indie",
-  "Pop",
-  "Electrónica",
-  "Techno",
-  "House",
-  "Jazz",
-  "Hip-Hop",
-  "Folk",
-  "Metal",
-  "Funk",
-  "Soul",
-  "Flamenco",
-  "Experimental",
-  "Reggae",
-  "Classical",
+const GENRES: { label: string; value: string }[] = [
+  { label: "Rock",       value: "ROCK" },
+  { label: "Indie",      value: "INDIE" },
+  { label: "Pop",        value: "POP" },
+  { label: "Electrónica",value: "ELECTRONIC" },
+  { label: "Techno",     value: "TECHNO" },
+  { label: "House",      value: "HOUSE" },
+  { label: "Jazz",       value: "JAZZ" },
+  { label: "Hip-Hop",    value: "HIP_HOP" },
+  { label: "Metal",      value: "METAL" },
+  { label: "Trap",       value: "TRAP" },
+  { label: "Reggaeton",  value: "REGGAETON" },
+  { label: "Flamenco",   value: "FLAMENCO" },
+  { label: "R&B",        value: "R_AND_B" },
+  { label: "Punk",       value: "PUNK" },
+  { label: "Latin Jazz", value: "LATIN_JAZZ" },
+  { label: "Clásica",    value: "CLASSICAL" },
 ]
 
 const TIME_SLOTS = [
-  "18:00",
-  "19:00",
-  "20:00",
-  "21:00",
-  "22:00",
-  "23:00",
-  "00:00",
-  "01:00",
+  "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "00:00", "01:00",
 ]
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
@@ -65,17 +60,19 @@ type Step = 1 | 2 | 3 | 4 | 5
 interface EventDraft {
   title: string
   artists: string[]
-  genres: string[]
-  venue: string
-  address: string
+  genres: string[]       // valores enum: "ROCK", "INDIE", …
+  place: string          // nombre de la sala
+  street: string
+  city: string
+  country: string
+  latitude: string
+  longitude: string
   date: string
   time: string
   description: string
   posterUrl: string | null
   price: string
   capacity: string
-  lastMinuteEnabled: boolean
-  lastMinuteDiscount: number
 }
 
 // ── Página principal ────────────────────────────────────────────────────────
@@ -83,20 +80,24 @@ interface EventDraft {
 export default function NewEventPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>(1)
+  const [publishing, setPublishing] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<EventDraft>({
     title: "",
     artists: [],
     genres: [],
-    venue: "",
-    address: "",
+    place: "",
+    street: "",
+    city: "",
+    country: "",
+    latitude: "",
+    longitude: "",
     date: "",
     time: "",
     description: "",
     posterUrl: null,
     price: "",
     capacity: "",
-    lastMinuteEnabled: false,
-    lastMinuteDiscount: 30,
   })
 
   const update = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) =>
@@ -106,18 +107,53 @@ export default function NewEventPage() {
   const goBack = () => step > 1 && setStep((step - 1) as Step)
   const goNext = () => step < 5 && setStep((step + 1) as Step)
 
-  // Validaciones mínimas por paso
   const stepValid: Record<Step, boolean> = {
     1: draft.title.trim().length > 0 && draft.artists.length > 0 && draft.genres.length > 0,
-    2: draft.venue.trim().length > 0 && draft.date.length > 0 && draft.time.length > 0,
+    2: draft.place.trim().length > 0 &&
+       draft.street.trim().length > 0 &&
+       draft.city.trim().length > 0 &&
+       draft.country.trim().length > 0 &&
+       draft.latitude.trim().length > 0 &&
+       draft.longitude.trim().length > 0 &&
+       draft.date.length > 0 &&
+       draft.time.length > 0,
     3: draft.posterUrl !== null && draft.description.trim().length > 0,
     4: draft.price.trim().length > 0 && draft.capacity.trim().length > 0,
     5: true,
   }
 
-  function handlePublish() {
-    // En real: POST al backend
-    router.push("/promoter")
+  async function handlePublish() {
+    setPublishing(true)
+    setError(null)
+    try {
+      // Combinar fecha + hora en ISO-8601 con zona UTC
+      const eventDate = new Date(`${draft.date}T${draft.time}:00`).toISOString()
+
+      const created = await createEvent({
+        title: draft.title,
+        genre: draft.genres[0],        // backend acepta un género
+        price: parseFloat(draft.price),
+        currency: "EUR",
+        totalCapacity: parseInt(draft.capacity),
+        eventDate,
+        place: draft.place || undefined,
+        street: draft.street,
+        city: draft.city,
+        country: draft.country,
+        latitude: parseFloat(draft.latitude),
+        longitude: parseFloat(draft.longitude),
+        coverImageUrl: draft.posterUrl ?? undefined,
+        artistName: draft.artists[0] || undefined,
+        description: draft.description || undefined,
+      })
+
+      await publishEvent(created.id)
+      router.push("/promoter")
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al publicar el evento")
+    } finally {
+      setPublishing(false)
+    }
   }
 
   return (
@@ -173,37 +209,43 @@ export default function NewEventPage() {
 
       {/* ── Footer CTA ── */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-gray-200 bg-white p-6">
-        <div className="mx-auto flex max-w-3xl items-center gap-3">
-          {step > 1 && (
-            <button
-              onClick={goBack}
-              className="flex h-14 items-center justify-center rounded-full border border-gray-300 bg-white px-6 text-sm font-bold uppercase tracking-widest text-black transition-all hover:border-black"
-            >
-              Atrás
-            </button>
+        <div className="mx-auto flex max-w-3xl flex-col gap-2">
+          {error && (
+            <p className="text-center text-xs font-bold text-red-600">{error}</p>
           )}
-          {step < 5 ? (
-            <button
-              onClick={goNext}
-              disabled={!stepValid[step]}
-              className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${
-                stepValid[step]
-                  ? "bg-black text-white hover:bg-gray-800"
-                  : "cursor-not-allowed bg-gray-200 text-gray-400"
-              }`}
-            >
-              Siguiente
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              onClick={handlePublish}
-              className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-black text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800"
-            >
-              Publicar evento
-              <Zap className="h-4 w-4" />
-            </button>
-          )}
+          <div className="flex items-center gap-3">
+            {step > 1 && (
+              <button
+                onClick={goBack}
+                className="flex h-14 items-center justify-center rounded-full border border-gray-300 bg-white px-6 text-sm font-bold uppercase tracking-widest text-black transition-all hover:border-black"
+              >
+                Atrás
+              </button>
+            )}
+            {step < 5 ? (
+              <button
+                onClick={goNext}
+                disabled={!stepValid[step]}
+                className={`flex h-14 flex-1 items-center justify-center gap-2 rounded-full text-sm font-bold uppercase tracking-widest transition-all ${
+                  stepValid[step]
+                    ? "bg-black text-white hover:bg-gray-800"
+                    : "cursor-not-allowed bg-gray-200 text-gray-400"
+                }`}
+              >
+                Siguiente
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handlePublish}
+                disabled={publishing}
+                className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-black text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800 disabled:opacity-50"
+              >
+                {publishing ? "Publicando…" : "Publicar evento"}
+                <Zap className="h-4 w-4" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -237,17 +279,14 @@ function Step1Basic({
   }
 
   const removeArtist = (name: string) =>
-    update(
-      "artists",
-      draft.artists.filter((a) => a !== name),
-    )
+    update("artists", draft.artists.filter((a) => a !== name))
 
-  const toggleGenre = (g: string) =>
+  const toggleGenre = (value: string) =>
     update(
       "genres",
-      draft.genres.includes(g)
-        ? draft.genres.filter((x) => x !== g)
-        : [...draft.genres, g],
+      draft.genres.includes(value)
+        ? draft.genres.filter((x) => x !== value)
+        : [...draft.genres, value],
     )
 
   return (
@@ -290,10 +329,7 @@ function Step1Basic({
               value={artistInput}
               onChange={(e) => setArtistInput(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault()
-                  addArtist()
-                }
+                if (e.key === "Enter") { e.preventDefault(); addArtist() }
               }}
               placeholder="Añadir artista y pulsar Enter"
               className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
@@ -338,24 +374,20 @@ function Step1Basic({
           </span>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {GENRES.map((g) => {
-            const selected = draft.genres.includes(g)
+          {GENRES.map(({ label, value }) => {
+            const selected = draft.genres.includes(value)
             return (
               <button
-                key={g}
-                onClick={() => toggleGenre(g)}
+                key={value}
+                onClick={() => toggleGenre(value)}
                 className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-sm font-semibold transition-all ${
                   selected
                     ? "border-black bg-black text-white"
                     : "border-gray-300 bg-white text-black hover:border-black"
                 }`}
               >
-                <span>{g}</span>
-                {selected ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
+                <span>{label}</span>
+                {selected ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               </button>
             )
           })}
@@ -385,16 +417,16 @@ function Step2Place({
         Define la ubicación exacta y la fecha del show.
       </p>
 
-      {/* Lugar */}
+      {/* Sala / place */}
       <div className="mt-10">
-        <Label>Sala / Venue</Label>
+        <Label>Sala / Place</Label>
         <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-gray-400" />
             <input
               type="text"
-              value={draft.venue}
-              onChange={(e) => update("venue", e.target.value)}
+              value={draft.place}
+              onChange={(e) => update("place", e.target.value)}
               placeholder="Ej: Sala Apolo"
               className="flex-1 bg-transparent text-sm font-semibold text-black placeholder:text-gray-400 focus:outline-none"
             />
@@ -402,21 +434,85 @@ function Step2Place({
         </div>
       </div>
 
-      {/* Dirección */}
+      {/* Calle */}
       <div className="mt-4">
-        <Label>Dirección completa</Label>
+        <Label>Calle y número</Label>
         <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
           <input
             type="text"
-            value={draft.address}
-            onChange={(e) => update("address", e.target.value)}
-            placeholder="Calle, número, ciudad"
+            value={draft.street}
+            onChange={(e) => update("street", e.target.value)}
+            placeholder="Ej: Carrer Nou de la Rambla, 113"
             className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
           />
         </div>
       </div>
 
-      {/* Fecha */}
+      {/* Ciudad + País */}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label>Ciudad</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <input
+              type="text"
+              value={draft.city}
+              onChange={(e) => update("city", e.target.value)}
+              placeholder="Ej: Barcelona"
+              className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+            />
+          </div>
+        </div>
+        <div>
+          <Label>País</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <input
+              type="text"
+              value={draft.country}
+              onChange={(e) => update("country", e.target.value)}
+              placeholder="Ej: España"
+              className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Coordenadas */}
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label>Latitud</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <div className="flex items-center gap-2">
+              <Navigation className="h-4 w-4 text-gray-400" />
+              <input
+                type="number"
+                step="0.000001"
+                value={draft.latitude}
+                onChange={(e) => update("latitude", e.target.value)}
+                placeholder="Ej: 41.375278"
+                className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+        <div>
+          <Label>Longitud</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <div className="flex items-center gap-2">
+              <Navigation className="h-4 w-4 text-gray-400" />
+              <input
+                type="number"
+                step="0.000001"
+                value={draft.longitude}
+                onChange={(e) => update("longitude", e.target.value)}
+                placeholder="Ej: 2.167778"
+                className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Fecha + Hora */}
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div>
           <Label>Fecha</Label>
@@ -572,9 +668,7 @@ function Step3Poster({
           </div>
           <textarea
             value={draft.description}
-            onChange={(e) =>
-              update("description", e.target.value.slice(0, 600))
-            }
+            onChange={(e) => update("description", e.target.value.slice(0, 600))}
             placeholder="Un repaso a los temas clásicos con nueva banda, invitados sorpresa y visuales inéditos…"
             rows={6}
             className="w-full resize-none bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
@@ -600,7 +694,6 @@ function Step4Tickets({
   const price = parseFloat(draft.price) || 0
   const capacity = parseInt(draft.capacity) || 0
   const grossRevenue = price * capacity
-  const lastMinutePrice = price * (1 - draft.lastMinuteDiscount / 100)
 
   return (
     <div>
@@ -669,94 +762,15 @@ function Step4Tickets({
         </div>
       )}
 
-      {/* Última hora toggle */}
-      <div className="mt-8">
-        <Label>Última hora</Label>
-        <div
-          className={`mt-2 overflow-hidden rounded-3xl border-2 bg-white transition-all ${
-            draft.lastMinuteEnabled
-              ? "border-black"
-              : "border-dashed border-gray-300"
-          }`}
-        >
-          <div className="flex items-start gap-4 p-5">
-            <div
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl transition-colors ${
-                draft.lastMinuteEnabled
-                  ? "bg-black text-white"
-                  : "bg-gray-100 text-black"
-              }`}
-            >
-              <Zap className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-black text-black">
-                    Activar Flash Deal
-                  </p>
-                  <p className="mt-0.5 text-xs font-medium text-gray-500">
-                    Las entradas no vendidas 48h antes del evento se publicarán
-                    con descuento en la sección última hora.
-                  </p>
-                </div>
-                <button
-                  onClick={() =>
-                    update("lastMinuteEnabled", !draft.lastMinuteEnabled)
-                  }
-                  role="switch"
-                  aria-checked={draft.lastMinuteEnabled}
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                    draft.lastMinuteEnabled ? "bg-black" : "bg-gray-300"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${
-                      draft.lastMinuteEnabled ? "left-5" : "left-0.5"
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {draft.lastMinuteEnabled && (
-                <div className="mt-5 space-y-3 border-t border-gray-100 pt-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                      Descuento aplicado
-                    </span>
-                    <span className="text-sm font-black text-black">
-                      -{draft.lastMinuteDiscount}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="70"
-                    step="5"
-                    value={draft.lastMinuteDiscount}
-                    onChange={(e) =>
-                      update("lastMinuteDiscount", Number(e.target.value))
-                    }
-                    className="w-full accent-black"
-                  />
-                  {price > 0 && (
-                    <div className="flex items-baseline gap-2 text-xs">
-                      <span className="text-gray-400 line-through">
-                        {price.toFixed(2)}€
-                      </span>
-                      <span className="text-base font-black text-black">
-                        {lastMinutePrice.toFixed(2)}€
-                      </span>
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                        precio flash
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+      {/* Nota sobre descuentos */}
+      <div className="mt-8 rounded-3xl border border-dashed border-gray-300 bg-gray-50 p-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+          Flash Deal
+        </p>
+        <p className="mt-1 text-sm font-medium text-gray-600">
+          Podrás activar descuentos y Flash Deals desde el panel de promotora
+          una vez el evento esté publicado.
+        </p>
       </div>
     </div>
   )
@@ -774,6 +788,7 @@ function Step5Review({
   const price = parseFloat(draft.price) || 0
   const capacity = parseInt(draft.capacity) || 0
   const gross = price * capacity
+  const genreLabel = GENRES.find((g) => g.value === draft.genres[0])?.label ?? draft.genres[0]
 
   return (
     <div>
@@ -794,7 +809,7 @@ function Step5Review({
 
       {/* Preview card */}
       <div className="mt-10 overflow-hidden rounded-3xl border border-gray-200 bg-white">
-        {draft.posterUrl && (
+        {draft.posterUrl ? (
           <div className="relative aspect-[16/9] w-full">
             <Image
               src={draft.posterUrl}
@@ -806,20 +821,17 @@ function Step5Review({
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6">
               <span className="rounded-full bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-black">
-                {draft.genres[0] ?? "Género"}
+                {genreLabel ?? "Género"}
               </span>
               <h2 className="mt-2 text-3xl font-black leading-tight text-white md:text-4xl">
                 {draft.title || "Sin título"}
               </h2>
               <p className="mt-1 text-sm font-bold text-white/80">
-                {draft.venue || "Sin venue"} · {formatDate(draft.date)} ·{" "}
-                {draft.time || "--:--"}
+                {draft.place || "Sin sala"} · {formatDate(draft.date)} · {draft.time || "--:--"}
               </p>
             </div>
           </div>
-        )}
-
-        {!draft.posterUrl && (
+        ) : (
           <div className="flex h-40 items-center justify-center bg-gray-50">
             <p className="text-sm font-bold text-gray-400">Sin cartel</p>
           </div>
@@ -827,9 +839,7 @@ function Step5Review({
 
         <div className="space-y-4 p-6">
           {draft.description && (
-            <p className="text-sm leading-relaxed text-gray-700">
-              {draft.description}
-            </p>
+            <p className="text-sm leading-relaxed text-gray-700">{draft.description}</p>
           )}
 
           {draft.artists.length > 0 && (
@@ -863,7 +873,7 @@ function Step5Review({
         <SummaryRow
           icon={MapPin}
           label="Lugar y fecha"
-          value={`${draft.venue || "—"} · ${formatDate(draft.date)} ${draft.time || ""}`}
+          value={`${draft.place || "—"} · ${formatDate(draft.date)} ${draft.time || ""}`}
           onEdit={() => onEdit(2)}
         />
         <SummaryRow
@@ -875,7 +885,7 @@ function Step5Review({
         <SummaryRow
           icon={Ticket}
           label="Entradas"
-          value={`${draft.capacity || 0} × ${draft.price || 0}€ = ${gross.toLocaleString("es-ES")}€${draft.lastMinuteEnabled ? " · Flash Deal ON" : ""}`}
+          value={`${draft.capacity || 0} × ${draft.price || 0}€ = ${gross.toLocaleString("es-ES")}€`}
           onEdit={() => onEdit(4)}
         />
       </div>
@@ -910,9 +920,7 @@ function SummaryRow({
         <Icon className="h-4 w-4 text-black" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-          {label}
-        </p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
         <p className="mt-0.5 truncate text-sm font-bold text-black">{value}</p>
       </div>
       <button
@@ -931,9 +939,5 @@ function formatDate(iso: string): string {
   if (!iso) return "—"
   const d = new Date(iso)
   if (isNaN(+d)) return iso
-  return d.toLocaleDateString("es-ES", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  })
+  return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })
 }
