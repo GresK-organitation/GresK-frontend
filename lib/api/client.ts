@@ -12,6 +12,22 @@ export class ApiException extends Error {
   }
 }
 
+/**
+ * Decodifica el payload de un JWT (sin verificar firma).
+ * Devuelve el objeto JSON del payload o null si el token es inválido.
+ */
+export function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const json = atob(base64)
+    return JSON.parse(json) as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 /** Fetch autenticado con Bearer token desde localStorage. */
 export async function authedFetch(
   path: string,

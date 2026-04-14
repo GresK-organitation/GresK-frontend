@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react"
 
-export type UserRole = "user" | "promoter"
+export type UserRole = "user" | "promoter" | "admin"
 
 interface AuthContextType {
   isLoggedIn: boolean
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setIsLoggedIn(localStorage.getItem("gresk_auth") === "true")
     const storedRole = localStorage.getItem("gresk_role") as UserRole | null
-    if (storedRole === "user" || storedRole === "promoter") setRole(storedRole)
+    if (storedRole === "user" || storedRole === "promoter" || storedRole === "admin") setRole(storedRole)
     const storedAccountId = localStorage.getItem("gresk_account_id")
     if (storedAccountId) setAccountId(storedAccountId)
     const storedToken = localStorage.getItem("gresk_token")

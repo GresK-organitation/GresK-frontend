@@ -14,6 +14,7 @@ export function Navbar() {
 
   const isFeed = pathname === "/feed"
   const isPromoter = role === "promoter"
+  const isAdmin = role === "admin"
 
   return (
     <>
@@ -21,7 +22,7 @@ export function Navbar() {
         <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-8">
           {/* Logo */}
           <Link
-            href={isLoggedIn && isPromoter ? "/promoter" : "/"}
+            href={isLoggedIn && isAdmin ? "/admin/dashboard" : isLoggedIn && isPromoter ? "/promoter" : "/"}
             className="flex items-center gap-2 text-2xl font-black tracking-tighter text-black"
           >
             GresK
@@ -30,11 +31,25 @@ export function Navbar() {
                 Promotora
               </span>
             )}
+            {isLoggedIn && isAdmin && (
+              <span className="rounded-full bg-black px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-white">
+                Admin
+              </span>
+            )}
           </Link>
 
           {/* Actions */}
           <div className="flex items-center gap-3">
-            {isFeed && !isPromoter && (
+            {isLoggedIn && isAdmin && (
+              <Button
+                asChild
+                className="rounded-full bg-black text-white text-sm font-semibold hover:bg-gray-800"
+              >
+                <Link href="/admin/dashboard">Panel Admin</Link>
+              </Button>
+            )}
+
+            {isFeed && !isPromoter && !isAdmin && (
               <>
                 <Button
                   asChild
@@ -68,7 +83,7 @@ export function Navbar() {
               </>
             )}
 
-            {!isFeed && !isPromoter && isLoggedIn && (
+            {!isFeed && !isPromoter && !isAdmin && isLoggedIn && (
               <Button
                 asChild
                 className="rounded-full border border-gray-300 bg-white text-black text-sm font-semibold hover:bg-gray-50 hover:border-black shadow-none"
@@ -77,7 +92,7 @@ export function Navbar() {
               </Button>
             )}
 
-            {!isFeed && !isPromoter && !isLoggedIn && (
+            {!isFeed && !isPromoter && !isAdmin && !isLoggedIn && (
               <Button
                 asChild
                 variant="ghost"
