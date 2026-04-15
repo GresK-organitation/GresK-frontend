@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -30,6 +30,12 @@ import {
   type PromoterEvent,
   type PromoterEventStatus,
 } from "@/lib/mock-data"
+import {
+  getPromoterDashboard,
+  getPromoterEvents,
+  mapToPromoterEvent,
+  type PromoterDashboardData,
+} from "@/lib/api/promoter"
 
 // ── Helpers de estado ───────────────────────────────────────────────────────
 
@@ -70,48 +76,81 @@ const EVENTS_PER_PAGE = 3
 export default function PromoterHomePage() {
   const [filter, setFilter] = useState<"all" | "upcoming" | "completed">("all")
   const [eventsPage, setEventsPage] = useState(1)
+  const [isLoading, setIsLoading] = useState(true)
+  const [events, setEvents] = useState<PromoterEvent[]>(MOCK_PROMOTER_EVENTS)
+  const [dashboard, setDashboard] = useState<PromoterDashboardData | null>(null)
 
-  const events = MOCK_PROMOTER_EVENTS
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [dashboardData, eventsData] = await Promise.all([
+          getPromoterDashboard(),
+          getPromoterEvents(),
+        ])
+        setDashboard(dashboardData)
+        setEvents(eventsData.map(mapToPromoterEvent))
+      } catch {
+        // Fallback silencioso a mock data si el backend no está disponible
+        setEvents(MOCK_PROMOTER_EVENTS)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [])
 
-  // ── KPIs ──
+  // ── KPIs — se usan los valores del backend si están disponibles ──
   const completed = events.filter((e) => e.status === "completed")
-  const upcoming = events.filter((e) =>
-    ["published", "live", "pending-review"].includes(e.status),
-  )
   const pending = events.filter((e) =>
     ["draft", "pending-review"].includes(e.status),
   )
 
-  const totalRevenue = events.reduce((a, e) => a + e.revenue, 0)
-  const totalAttendees = completed.reduce((a, e) => a + e.ticketsSold, 0)
-  const ratedEvents = completed.filter((e) => e.reviewsCount > 0)
-  const avgRating = ratedEvents.length
-    ? ratedEvents.reduce((a, e) => a + e.avgRating, 0) / ratedEvents.length
-    : 0
+  const totalRevenue = dashboard?.totalRevenue
+    ?? events.reduce((a, e) => a + e.revenue, 0)
+
+  const totalAttendees = dashboard?.totalAttendees
+    ?? completed.reduce((a, e) => a + e.ticketsSold, 0)
+
+  const avgRating = dashboard?.averageRating
+    ?? (() => {
+      const ratedEvents = completed.filter((e) => e.reviewsCount > 0)
+      return ratedEvents.length
+        ? ratedEvents.reduce((a, e) => a + e.avgRating, 0) / ratedEvents.length
+        : 0
+    })()
+
   const totalReviews = completed.reduce((a, e) => a + e.reviewsCount, 0)
 
-  const sellThrough = useMemo(() => {
-    const publishedAndDone = events.filter((e) =>
-      ["published", "live", "completed"].includes(e.status),
-    )
-    const sold = publishedAndDone.reduce((a, e) => a + e.ticketsSold, 0)
-    const cap = publishedAndDone.reduce((a, e) => a + e.capacity, 0)
-    return cap ? (sold / cap) * 100 : 0
-  }, [events])
+  const sellThrough = dashboard?.sellThrough
+    ?? (() => {
+      const publishedAndDone = events.filter((e) =>
+        ["published", "live", "completed"].includes(e.status),
+      )
+      const sold = publishedAndDone.reduce((a, e) => a + e.ticketsSold, 0)
+      const cap = publishedAndDone.reduce((a, e) => a + e.capacity, 0)
+      return cap ? (sold / cap) * 100 : 0
+    })()
 
-  const activeEvents = events.filter(
-    (e) => !["draft", "completed", "cancelled"].includes(e.status),
-  ).length
+  const activeEventsCount = dashboard?.activeEvents
+    ?? events.filter((e) => !["draft", "completed", "cancelled"].includes(e.status)).length
+
+  const pendingEventsCount = dashboard?.pendingEvents ?? pending.length
+
+  const avgTicketPrice = dashboard?.avgTicketPrice
+    ?? (totalAttendees > 0 ? Math.round(totalRevenue / totalAttendees) : 0)
+
+  const promoterName = dashboard?.name ?? "Night Waves"
 
   // ── Historial filtrado ──
-  const history = events
+  const history = useMemo(() => events
     .filter((e) => {
       if (filter === "upcoming")
         return ["published", "live", "pending-review"].includes(e.status)
       if (filter === "completed") return e.status === "completed"
       return true
     })
-    .sort((a, b) => +new Date(b.dateIso) - +new Date(a.dateIso))
+    .sort((a, b) => +new Date(b.dateIso) - +new Date(a.dateIso)),
+  [events, filter])
 
   const totalEventPages = Math.ceil(history.length / EVENTS_PER_PAGE)
   const pagedHistory = history.slice(
@@ -131,7 +170,11 @@ export default function PromoterHomePage() {
               Panel de promotora
             </p>
             <h1 className="mt-1 text-4xl font-black tracking-tight text-black md:text-5xl">
-              Hola, Night Waves
+              {isLoading ? (
+                <span className="inline-block h-12 w-72 animate-pulse rounded-2xl bg-gray-100" />
+              ) : (
+                <>Hola, {promoterName}</>
+              )}
             </h1>
             <p className="mt-3 text-base text-gray-500">
               Gestiona tus eventos, revisa el rendimiento y publica nuevas
@@ -149,21 +192,21 @@ export default function PromoterHomePage() {
           <KpiCard
             icon={Euro}
             label="Recaudación total"
-            value={`${totalRevenue.toLocaleString("es-ES")}€`}
+            value={isLoading ? "—" : `${Number(totalRevenue).toLocaleString("es-ES")}€`}
             hint={`${events.length} eventos`}
             trend="+12%"
           />
           <KpiCard
             icon={Users}
             label="Asistentes totales"
-            value={totalAttendees.toLocaleString("es-ES")}
+            value={isLoading ? "—" : Number(totalAttendees).toLocaleString("es-ES")}
             hint={`${completed.length} eventos finalizados`}
             trend="+8%"
           />
           <KpiCard
             icon={Star}
             label="Nota media"
-            value={avgRating.toFixed(1)}
+            value={isLoading ? "—" : avgRating.toFixed(1)}
             suffix="/ 5"
             hint={`${totalReviews} reviews`}
             showStar
@@ -171,7 +214,7 @@ export default function PromoterHomePage() {
           <KpiCard
             icon={Percent}
             label="Sell-through"
-            value={`${sellThrough.toFixed(0)}%`}
+            value={isLoading ? "—" : `${Number(sellThrough).toFixed(0)}%`}
             hint="% aforo vendido"
             trend="+5%"
           />
@@ -182,17 +225,17 @@ export default function PromoterHomePage() {
           <MiniStat
             icon={Ticket}
             label="Eventos activos"
-            value={activeEvents.toString()}
+            value={isLoading ? "—" : activeEventsCount.toString()}
           />
           <MiniStat
             icon={AlertCircle}
             label="Pendientes"
-            value={pending.length.toString()}
+            value={isLoading ? "—" : pendingEventsCount.toString()}
           />
           <MiniStat
             icon={TrendingUp}
             label="Ticket medio"
-            value={`${completed.length ? Math.round(totalRevenue / totalAttendees) : 0}€`}
+            value={isLoading ? "—" : `${Math.round(Number(avgTicketPrice))}€`}
           />
         </section>
 
@@ -227,7 +270,7 @@ export default function PromoterHomePage() {
         </section>
 
         {/* ── Eventos pendientes ───────────────────────────── */}
-        {pending.length > 0 && (
+        {!isLoading && pending.length > 0 && (
           <section className="mb-14">
             <div className="mb-6 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-black" />
@@ -280,33 +323,46 @@ export default function PromoterHomePage() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            {pagedHistory.map((event) => (
-              <PromoterEventCard key={event.id} event={event} />
-            ))}
-          </div>
-
-          {/* Paginación eventos */}
-          {totalEventPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button
-                onClick={() => setEventsPage((p) => Math.max(1, p - 1))}
-                disabled={eventsPage === 1}
-                className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
-              >
-                ← Anterior
-              </button>
-              <span className="text-xs font-bold text-gray-500">
-                {eventsPage} / {totalEventPages}
-              </span>
-              <button
-                onClick={() => setEventsPage((p) => Math.min(totalEventPages, p + 1))}
-                disabled={eventsPage === totalEventPages}
-                className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
-              >
-                Siguiente →
-              </button>
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-48 animate-pulse rounded-3xl bg-gray-100"
+                />
+              ))}
             </div>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {pagedHistory.map((event) => (
+                  <PromoterEventCard key={event.id} event={event} />
+                ))}
+              </div>
+
+              {/* Paginación eventos */}
+              {totalEventPages > 1 && (
+                <div className="mt-6 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setEventsPage((p) => Math.max(1, p - 1))}
+                    disabled={eventsPage === 1}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="text-xs font-bold text-gray-500">
+                    {eventsPage} / {totalEventPages}
+                  </span>
+                  <button
+                    onClick={() => setEventsPage((p) => Math.min(totalEventPages, p + 1))}
+                    disabled={eventsPage === totalEventPages}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
 
@@ -480,7 +536,7 @@ function PendingEventCard({ event }: { event: PromoterEvent }) {
 // ── Promoter Event Card (historial) ─────────────────────────────────────────
 
 function PromoterEventCard({ event }: { event: PromoterEvent }) {
-  const fillPct = (event.ticketsSold / event.capacity) * 100
+  const fillPct = event.capacity > 0 ? (event.ticketsSold / event.capacity) * 100 : 0
   const isCompleted = event.status === "completed"
 
   return (
@@ -561,7 +617,7 @@ function PromoterEventCard({ event }: { event: PromoterEvent }) {
             <InlineStat
               icon={Euro}
               label="Recaudación"
-              value={`${event.revenue.toLocaleString("es-ES")}€`}
+              value={`${Number(event.revenue).toLocaleString("es-ES")}€`}
             />
             <InlineStat
               icon={Users}
@@ -658,4 +714,3 @@ function FilterPill({
     </button>
   )
 }
-
