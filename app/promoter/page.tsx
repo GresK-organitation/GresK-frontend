@@ -314,6 +314,30 @@ export default function PromoterHomePage() {
         <section className="mt-14">
           <div className="mb-2 h-px w-full bg-gray-200" />
           <div className="mt-14">
+
+            {/* CTA Añadir artista */}
+            <div className="mb-10">
+              <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                Artistas
+              </p>
+              <Link href="/promoter/artists/new" className="block">
+                <div className="group flex items-center justify-between rounded-3xl border border-dashed border-gray-300 bg-white p-6 transition-all hover:border-black hover:bg-gray-50 hover:shadow-xl">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black">
+                      <Plus className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-base font-black text-black">Añadir nuevo artista</p>
+                      <p className="text-sm text-gray-500">Gestiona tu cartera de artistas</p>
+                    </div>
+                  </div>
+                  <div className="hidden items-center gap-2 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white sm:flex">
+                    Añadir <ArrowRight className="h-4 w-4" />
+                  </div>
+                </div>
+              </Link>
+            </div>
+
             <ArtistsSection />
           </div>
         </section>

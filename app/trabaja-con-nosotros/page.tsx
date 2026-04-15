@@ -2,9 +2,8 @@
 
 import { useRef, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/lib/auth-context"
 import { Navbar } from "@/components/dashboard/navbar"
-import { Check } from "lucide-react"
+import { Check, AlertCircle } from "lucide-react"
 import { registerPromoter } from "@/lib/api/auth"
 import { ApiException } from "@/lib/api/client"
 
@@ -79,7 +78,6 @@ function TextInput({
 
 export default function TrabajaConNosotrosPage() {
   const router = useRouter()
-  const { login } = useAuth()
   const logoInputRef = useRef<HTMLInputElement>(null)
 
   // Campos del formulario
@@ -95,9 +93,13 @@ export default function TrabajaConNosotrosPage() {
   const [description, setDescription] = useState("")
   const [logo, setLogo] = useState<File | null>(null)
 
-  const [submitted, setSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
+
+  function isValidEmail(v: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+  }
 
   function toggleGenre(value: string) {
     setSelectedGenres((prev) =>
@@ -107,6 +109,10 @@ export default function TrabajaConNosotrosPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!isValidEmail(email)) {
+      setEmailError("Introduce un correo electrónico válido")
+      return
+    }
     setError(null)
     setLoading(true)
 
@@ -126,9 +132,7 @@ export default function TrabajaConNosotrosPage() {
         },
         logo ?? undefined
       )
-      login("promoter")
-      setSubmitted(true)
-      setTimeout(() => router.push("/promoter"), 1800)
+      router.push("/promoter/pending")
     } catch (err) {
       if (err instanceof ApiException && err.status === 409) {
         setError("Este correo electrónico ya está registrado.")
@@ -138,30 +142,6 @@ export default function TrabajaConNosotrosPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  if (submitted) {
-    return (
-      <>
-        <Navbar />
-        <main className="flex min-h-screen items-center justify-center bg-white pt-16">
-          <div className="text-center">
-            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-black">
-              <Check className="h-8 w-8 text-white" />
-            </div>
-            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">
-              Solicitud enviada
-            </p>
-            <h1 className="mt-2 text-3xl font-black text-black">
-              ¡Bienvenida a GresK!
-            </h1>
-            <p className="mt-3 text-sm font-medium text-gray-500">
-              Redirigiendo a tu panel de promotora…
-            </p>
-          </div>
-        </main>
-      </>
-    )
   }
 
   return (
@@ -223,10 +203,23 @@ export default function TrabajaConNosotrosPage() {
                     type="email"
                     placeholder="hola@tusala.com"
                     value={email}
-                    onChange={setEmail}
+                    onChange={(v) => {
+                      setEmail(v)
+                      if (v && !isValidEmail(v)) {
+                        setEmailError("Introduce un correo electrónico válido")
+                      } else {
+                        setEmailError(null)
+                      }
+                    }}
                     required
                   />
                 </FormRow>
+                {emailError && (
+                  <div className="flex items-center gap-1.5 pb-3 pt-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-black" />
+                    <p className="text-xs font-bold text-black">{emailError}</p>
+                  </div>
+                )}
 
                 <FormRow label="Contraseña" required>
                   <TextInput
@@ -362,7 +355,7 @@ export default function TrabajaConNosotrosPage() {
                 <div className="pt-8">
                   <button
                     type="submit"
-                    disabled={loading || selectedGenres.length === 0}
+                    disabled={loading || selectedGenres.length === 0 || !!emailError}
                     className="w-full rounded-full bg-black py-4 text-sm font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-40"
                   >
                     {loading ? "Enviando solicitud…" : "Enviar solicitud →"}
