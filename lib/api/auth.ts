@@ -1,4 +1,38 @@
 import { API_BASE_URL, ApiException } from "./client"
+import { authService } from "@/lib/auth-service"
+import type { UserRole } from "@/lib/auth-context"
+
+// ── Login ────────────────────────────────────────────────────────────────────
+
+export interface LoginResult {
+  token: string
+  expiresIn: number
+  accountId: string
+  role: UserRole
+}
+
+/**
+ * POST /api/v1/auth/login
+ * Devuelve el token JWT + datos extraídos del payload via authService.
+ */
+export async function loginUser(email: string, password: string): Promise<LoginResult> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  })
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new ApiException(res.status, body.error ?? "Credenciales incorrectas")
+  }
+
+  const data = await res.json() as { token: string; expiresIn: number }
+  const role    = authService.getRoleFromToken(data.token)
+  const accountId = authService.getAccountIdFromToken(data.token)
+
+  return { token: data.token, expiresIn: data.expiresIn, accountId, role }
+}
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 

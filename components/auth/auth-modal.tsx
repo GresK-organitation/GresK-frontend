@@ -11,7 +11,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { API_BASE_URL } from "@/lib/api/client"
+import { loginUser } from "@/lib/api/auth"
+import { ApiException } from "@/lib/api/client"
+import { authService } from "@/lib/auth-service"
 
 interface AuthModalProps {
   open: boolean
@@ -47,7 +49,8 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
   )
 }
 
-// ——— Campo de formulario estilo GresK ———
+// ── Campo de formulario ──────────────────────────────────────────────────────
+
 function FormField({
   id,
   label,
@@ -56,7 +59,6 @@ function FormField({
   value,
   onChange,
   required,
-  minLength,
 }: {
   id: string
   label: string
@@ -65,11 +67,13 @@ function FormField({
   value: string
   onChange: (v: string) => void
   required?: boolean
-  minLength?: number
 }) {
   return (
     <div className="border-b border-gray-200 py-3">
-      <label htmlFor={id} className="block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+      <label
+        htmlFor={id}
+        className="block text-[10px] font-bold uppercase tracking-widest text-gray-500"
+      >
         {label}
       </label>
       <input
@@ -79,12 +83,13 @@ function FormField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
-        minLength={minLength}
         className="mt-1 w-full bg-transparent text-sm font-medium text-black placeholder:text-gray-300 focus:outline-none"
       />
     </div>
   )
 }
+
+// ── Formulario de login ──────────────────────────────────────────────────────
 
 function LoginForm({ onClose }: { onClose: () => void }) {
   const router = useRouter()
@@ -92,35 +97,29 @@ function LoginForm({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setErrorMsg(null)
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        const token: string | undefined = data.token
-        const roles: string[] = data.roles ?? []
-        const role: "promoter" | "user" = roles.includes("PROMOTER") ? "promoter" : "user"
-        const accountId: string | undefined = data.accountId
-        login(role, accountId, token)
-        onClose()
-        router.push(role === "promoter" ? "/promoter" : "/feed")
-      } else {
-        // fallback offline-tolerant
+      const result = await loginUser(email, password)
+      login(result.role, result.accountId, result.token)
+      onClose()
+      router.push(authService.getRedirectPath(result.role))
+    } catch (err) {
+      if (err instanceof ApiException && err.status === 401) {
+        setErrorMsg("Email o contraseña incorrectos")
+      } else if (err instanceof Error && err.name === "TypeError") {
+        // Backend caído — fallback offline-tolerant
         login("user")
         onClose()
-        router.push("/feed")
+        router.push(authService.getRedirectPath("user"))
+      } else {
+        setErrorMsg("Error al conectar con el servidor")
       }
-    } catch {
-      login("user")
-      onClose()
-      router.push("/feed")
     } finally {
       setLoading(false)
     }
@@ -147,6 +146,10 @@ function LoginForm({ onClose }: { onClose: () => void }) {
         required
       />
 
+      {errorMsg && (
+        <p className="pt-3 text-center text-xs font-bold text-red-600">{errorMsg}</p>
+      )}
+
       <div className="pt-5">
         <Button
           type="submit"
@@ -156,7 +159,6 @@ function LoginForm({ onClose }: { onClose: () => void }) {
           {loading ? "Entrando…" : "Iniciar sesión"}
         </Button>
       </div>
-
     </form>
   )
 }
