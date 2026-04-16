@@ -3,6 +3,28 @@ import { type PromoterEvent, type PromoterEventStatus } from "@/lib/mock-data"
 
 // ── Tipos de respuesta del backend ────────────────────────────────────────────
 
+export interface PromoterProfile {
+  id: string
+  name: string
+  email: string
+  street: string
+  city: string
+  country: string
+  logoUrl: string | null
+  description: string
+  musicalGenres: string[]
+  createdAt: string
+}
+
+export interface UpdatePromoterProfilePayload {
+  name: string
+  city: string
+  country: string
+  address: string       // campo "street" en el dominio; el backend lo llama "address"
+  description: string
+  musicalGenres: string[]
+}
+
 export interface PromoterDashboardData {
   name: string
   logoUrl: string
@@ -38,6 +60,39 @@ export interface PromoterEventData {
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
+
+export async function getPromoterProfile(): Promise<PromoterProfile> {
+  const res = await authedFetch("/api/v1/promoters/me")
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al obtener el perfil")
+  }
+  return res.json()
+}
+
+export async function updatePromoterProfile(payload: UpdatePromoterProfilePayload): Promise<void> {
+  const res = await authedFetch("/api/v1/promoters/me", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al actualizar el perfil")
+  }
+}
+
+export async function updatePromoterLogo(file: File): Promise<void> {
+  const formData = new FormData()
+  formData.append("file", file)
+  const res = await authedFetch("/api/v1/promoters/me/logo", {
+    method: "PATCH",
+    body: formData,
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al actualizar el logo")
+  }
+}
 
 export async function getPromoterDashboard(): Promise<PromoterDashboardData> {
   const res = await authedFetch("/api/v1/promoters/me/dashboard")

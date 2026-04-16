@@ -6,7 +6,7 @@ import Link from "next/link"
 import { ChevronLeft, ArrowRight, Check, MapPin, User, Music2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
-import { registerUser } from "@/lib/api/auth"
+import { registerUser, checkEmailAvailable } from "@/lib/api/auth"
 import { ApiException } from "@/lib/api/client"
 
 // ── Datos ────────────────────────────────────────────────────────────────────
@@ -47,6 +47,7 @@ export default function RegistroPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [emailError, setEmailError] = useState<string | null>(null)
 
   // Campos
   const [name, setName] = useState("")
@@ -67,8 +68,22 @@ export default function RegistroPage() {
     )
   }
 
+  async function handleEmailBlur() {
+    if (!email.trim() || !email.includes("@")) return
+    try {
+      const available = await checkEmailAvailable(email.trim())
+      if (!available) {
+        setEmailError("Este correo ya está registrado. ¿Quieres iniciar sesión?")
+      } else {
+        setEmailError(null)
+      }
+    } catch {
+      // Si el backend no responde, no bloqueamos el flujo
+    }
+  }
+
   function canContinue(): boolean {
-    if (step === 1) return name.trim() !== "" && email.trim() !== "" && password.length >= 6
+    if (step === 1) return name.trim() !== "" && email.trim() !== "" && password.length >= 6 && !emailError
     if (step === 2) return city !== ""
     if (step === 3) return genres.length > 0
     return true
@@ -167,7 +182,9 @@ export default function RegistroPage() {
         {step === 1 && (
           <StepCredentials
             name={name} setName={setName}
-            email={email} setEmail={setEmail}
+            email={email} setEmail={(v) => { setEmail(v); setEmailError(null) }}
+            onEmailBlur={handleEmailBlur}
+            emailError={emailError}
             password={password} setPassword={setPassword}
           />
         )}
@@ -224,10 +241,12 @@ export default function RegistroPage() {
 // ── Paso 1: Credenciales ──────────────────────────────────────────────────────
 
 function StepCredentials({
-  name, setName, email, setEmail, password, setPassword,
+  name, setName, email, setEmail, onEmailBlur, emailError, password, setPassword,
 }: {
   name: string; setName: (v: string) => void
   email: string; setEmail: (v: string) => void
+  onEmailBlur: () => void
+  emailError: string | null
   password: string; setPassword: (v: string) => void
 }) {
   return (
@@ -258,8 +277,15 @@ function StepCredentials({
             placeholder="tu@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onBlur={onEmailBlur}
             className="w-full bg-transparent text-base font-medium text-black placeholder:text-gray-300 focus:outline-none"
           />
+          {emailError && (
+            <p className="mt-2 text-xs font-bold text-black">
+              {emailError}{" "}
+              <Link href="/" className="underline underline-offset-2">Inicia sesión</Link>
+            </p>
+          )}
         </FormRow>
         <FormRow label="Contraseña">
           <input

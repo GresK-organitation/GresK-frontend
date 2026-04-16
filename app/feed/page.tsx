@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -16,16 +17,83 @@ import {
 } from "lucide-react"
 import { Navbar } from "@/components/dashboard/navbar"
 import { TierCard } from "@/components/dashboard/tier-card"
+import { SpotifyBadge } from "@/components/dashboard/spotify-badge"
 import {
   MOCK_EVENTS,
   MOCK_LAST_MINUTE,
   MOCK_RECOMMENDED_TRACKS,
   type RecommendedTrack,
 } from "@/lib/mock-data"
+import {
+  getUserDashboard,
+  getNextTierPoints,
+  type UserDashboard,
+  type UserDashboardEventItem,
+  type UserDashboardMusicItem,
+} from "@/lib/api/user"
 
-const featured = MOCK_EVENTS[0]
+// ── Mappers ──────────────────────────────────────────────────────────────────
+
+function mapEventToFeatured(e: UserDashboardEventItem) {
+  return {
+    id: e.id,
+    title: e.title,
+    venue: e.location,
+    date: e.date,
+    time: e.time,
+    imageUrl: e.imageUrl,
+    genre: e.category,
+    description: "",
+    price: "",
+  }
+}
+
+function mapMusicToTrack(m: UserDashboardMusicItem, index: number): RecommendedTrack {
+  return {
+    id: index,
+    title: m.trackName,
+    artist: m.artistName,
+    album: m.genre,
+    duration: "—",
+    coverUrl: m.imageUrl,
+    reason: m.genre,
+    spotifyUrl: m.spotifyUrl,
+  }
+}
+
+// ── Página ───────────────────────────────────────────────────────────────────
 
 export default function FeedPage() {
+  const [dashboard, setDashboard] = useState<UserDashboard | null>(null)
+
+  useEffect(() => {
+    getUserDashboard()
+      .then(setDashboard)
+      .catch(() => {
+        // Si falla (sin sesión o error de red), se mantiene null y se usan los mock
+      })
+  }, [])
+
+  // Datos derivados del backend o fallback a mock
+  const userName = dashboard?.name ?? "Javi"
+  const tier = dashboard?.tier ?? "SILVER"
+  const points = dashboard?.points ?? 620
+  const musicGenres = dashboard?.musicGenres ?? []
+  const nextTierPoints = dashboard ? getNextTierPoints(dashboard.tier) : 1000
+
+  const backendEvents = dashboard?.events ?? []
+  const backendMusic = dashboard?.music ?? []
+
+  const featured =
+    backendEvents.length > 0
+      ? mapEventToFeatured(backendEvents[0])
+      : MOCK_EVENTS[0]
+
+  const tracks: RecommendedTrack[] =
+    backendMusic.length > 0
+      ? backendMusic.slice(0, 3).map(mapMusicToTrack)
+      : MOCK_RECOMMENDED_TRACKS.slice(0, 3)
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
@@ -34,21 +102,29 @@ export default function FeedPage() {
         {/* ── Bienvenida ── */}
         <div className="mb-4">
           <p className="text-2xl font-black text-black">
-            Hola, Javi 👋
+            Hola, {userName} 👋
           </p>
+          {musicGenres.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {musicGenres.map((genre) => (
+                <span
+                  key={genre}
+                  className="rounded-full border border-gray-200 bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-600"
+                >
+                  {genre.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* ── Tier & progreso ── */}
         <section className="mb-12">
           <TierCard
-            tier="SILVER"
-            currentPoints={620}
-            nextTierPoints={1000}
-            userName="Javi"
-            userAvatarUrl="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80"
-            eventsCount={6}
-            avgRating={4.6}
-            pointsThisMonth={125}
+            tier={tier}
+            currentPoints={points}
+            nextTierPoints={nextTierPoints}
+            userName={userName}
           />
         </section>
 
@@ -116,16 +192,20 @@ export default function FeedPage() {
                 <h2 className="text-3xl font-black text-white md:text-4xl">
                   {featured.title}
                 </h2>
-                <p className="mt-2 line-clamp-2 max-w-xl text-sm text-white/80">
-                  {featured.description}
-                </p>
+                {"description" in featured && featured.description && (
+                  <p className="mt-2 line-clamp-2 max-w-xl text-sm text-white/80">
+                    {featured.description}
+                  </p>
+                )}
                 <div className="mt-4 flex items-center gap-3">
                   <span className="rounded-full border border-white/40 bg-white/10 px-3 py-1 text-xs font-bold text-white backdrop-blur">
                     {featured.genre}
                   </span>
-                  <span className="text-sm font-bold text-white">
-                    {featured.price}
-                  </span>
+                  {"price" in featured && featured.price && (
+                    <span className="text-sm font-bold text-white">
+                      {featured.price}
+                    </span>
+                  )}
                   <span className="ml-auto flex items-center gap-1 text-sm font-semibold text-white transition-transform group-hover:translate-x-1">
                     Ver evento <ArrowRight className="h-4 w-4" />
                   </span>
@@ -144,6 +224,7 @@ export default function FeedPage() {
                 <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
                   Para tu playlist
                 </span>
+                <SpotifyBadge />
               </div>
               <h2 className="mt-1 text-2xl font-black text-black">
                 Canciones recomendadas
@@ -159,12 +240,12 @@ export default function FeedPage() {
           </div>
 
           <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white">
-            {MOCK_RECOMMENDED_TRACKS.slice(0, 3).map((track, i) => (
+            {tracks.map((track, i) => (
               <TrackRow
                 key={track.id}
                 track={track}
                 index={i + 1}
-                isLast={i === 2}
+                isLast={i === tracks.length - 1}
               />
             ))}
           </div>
@@ -263,15 +344,19 @@ function TrackRow({
           {String(index).padStart(2, "0")}
         </span>
         <button
-          aria-label="Reproducir"
-          className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+          aria-label="Reproducir en Spotify"
+          onClick={() => track.spotifyUrl && window.open(track.spotifyUrl, "_blank", "noopener,noreferrer")}
+          className={`absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100 ${track.spotifyUrl ? "cursor-pointer" : "cursor-default"}`}
         >
           <Play className="h-4 w-4 fill-black text-black" />
         </button>
       </div>
 
-      {/* Cover */}
-      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gray-200">
+      {/* Cover — click abre Spotify */}
+      <div
+        onClick={() => track.spotifyUrl && window.open(track.spotifyUrl, "_blank", "noopener,noreferrer")}
+        className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gray-200 ${track.spotifyUrl ? "cursor-pointer" : ""}`}
+      >
         <Image
           src={track.coverUrl}
           alt={track.album}

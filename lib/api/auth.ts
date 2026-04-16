@@ -2,6 +2,20 @@ import { API_BASE_URL, ApiException } from "./client"
 import { authService } from "@/lib/auth-service"
 import type { UserRole } from "@/lib/auth-context"
 
+// ── Check email ──────────────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/auth/check-email?email=
+ * Devuelve true si el email está disponible (no registrado), false si ya existe.
+ */
+export async function checkEmailAvailable(email: string): Promise<boolean> {
+  const params = new URLSearchParams({ email })
+  const res = await fetch(`${API_BASE_URL}/api/v1/auth/check-email?${params}`)
+  if (!res.ok) throw new ApiException(res.status, "Error al verificar el email")
+  const data = await res.json() as { available: boolean }
+  return data.available
+}
+
 // ── Login ────────────────────────────────────────────────────────────────────
 
 export interface LoginResult {

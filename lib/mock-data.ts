@@ -161,6 +161,7 @@ export interface RecommendedTrack {
   coverUrl: string
   reason: string // por qué se recomienda
   relatedEventId?: number // evento donde tocará
+  spotifyUrl?: string // enlace directo al track en Spotify
 }
 
 export const MOCK_RECOMMENDED_TRACKS: RecommendedTrack[] = [
