@@ -94,3 +94,25 @@ export async function getLastMinuteEvents(): Promise<EventResponse[]> {
   }
   return res.json()
 }
+
+// ── Ticket purchase ───────────────────────────────────────────────────────────
+
+export interface TicketPurchaseResponse {
+  id: string
+  eventId: string
+  status: string       // "PURCHASED"
+  qrCode: string
+  purchasedAt: string  // ISO-8601
+}
+
+export async function purchaseTicket(eventId: string): Promise<TicketPurchaseResponse> {
+  const res = await authedFetch("/api/v1/tickets", {
+    method: "POST",
+    body: JSON.stringify({ eventId }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al comprar el ticket")
+  }
+  return res.json()
+}

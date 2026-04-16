@@ -142,7 +142,7 @@ export default function NewEventPage() {
         country: draft.country,
         latitude: parseFloat(draft.latitude),
         longitude: parseFloat(draft.longitude),
-        coverImageUrl: draft.posterUrl ?? undefined,
+        coverImageUrl: draft.posterUrl?.startsWith("data:") ? undefined : draft.posterUrl ?? undefined,
         artistName: draft.artists[0] || undefined,
         description: draft.description || undefined,
       })
@@ -613,12 +613,11 @@ function Step3Poster({
         {draft.posterUrl ? (
           <div className="mt-2 overflow-hidden rounded-3xl border border-gray-200 bg-white">
             <div className="relative aspect-[4/5] w-full sm:aspect-video">
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={draft.posterUrl}
                 alt="Cartel evento"
-                fill
-                className="object-cover"
-                unoptimized
+                className="absolute inset-0 h-full w-full object-cover"
               />
             </div>
             <div className="flex items-center justify-between gap-2 p-4">
@@ -811,12 +810,11 @@ function Step5Review({
       <div className="mt-10 overflow-hidden rounded-3xl border border-gray-200 bg-white">
         {draft.posterUrl ? (
           <div className="relative aspect-[16/9] w-full">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={draft.posterUrl}
               alt={draft.title}
-              fill
-              className="object-cover grayscale"
-              unoptimized
+              className="absolute inset-0 h-full w-full object-cover grayscale"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
             <div className="absolute bottom-0 left-0 right-0 p-6">
