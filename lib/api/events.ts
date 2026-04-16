@@ -83,3 +83,14 @@ export async function getEvent(id: string): Promise<EventResponse> {
   }
   return res.json()
 }
+
+// ── Eventos de última hora ───────────────────────────────────────────────────
+
+export async function getLastMinuteEvents(): Promise<EventResponse[]> {
+  const res = await authedFetch("/api/v1/events/last-minute")
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al cargar eventos de última hora")
+  }
+  return res.json()
+}
