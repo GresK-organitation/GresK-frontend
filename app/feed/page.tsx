@@ -69,7 +69,7 @@ export default function FeedPage() {
         </section>
 
         {/* ── Accesos rápidos ── */}
-        <div className="mb-12 grid grid-cols-2 gap-3">
+        <div className="mb-12 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Link
             href="/discover"
             className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md"
@@ -87,6 +87,16 @@ export default function FeedPage() {
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Historial</p>
               <p className="mt-0.5 text-sm font-black text-black">Mis eventos</p>
+            </div>
+            <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-1 group-hover:text-black" />
+          </Link>
+          <Link
+            href="/my-tickets"
+            className="group col-span-2 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md sm:col-span-1"
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Entradas</p>
+              <p className="mt-0.5 text-sm font-black text-black">Mis tickets</p>
             </div>
             <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-1 group-hover:text-black" />
           </Link>
