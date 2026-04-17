@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import {
   ArrowLeft,
   ArrowRight,
@@ -60,6 +60,7 @@ function fmtPrice(amount: number | null | undefined, currency: string | null | u
 
 export default function EventDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { isLoggedIn, role } = useAuth()
 
   const isUuid = typeof id === "string" && UUID_RE.test(id)
@@ -159,6 +160,8 @@ export default function EventDetailPage() {
       const ticket = await purchaseTicket(displayId)
       setPurchasedTicket(ticket)
       setPurchaseState("success")
+      // Redirigir a la página del QR, pasando el eventId para cargar datos del evento
+      router.push(`/tickets/${ticket.id}?eventId=${ticket.eventId}`)
     } catch (e: any) {
       setPurchaseError(e?.message ?? "Error inesperado al procesar el pago.")
       setPurchaseState("error")
