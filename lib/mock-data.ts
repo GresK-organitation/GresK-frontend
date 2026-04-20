@@ -600,7 +600,7 @@ export const MOCK_REVIEWS: Review[] = [
 export type ArtistStatus = "confirmed" | "negotiating" | "available" | "inactive"
 
 export interface PromoterArtist {
-  id: number
+  id: string
   name: string
   imageUrl: string
   genres: string[]
@@ -621,7 +621,7 @@ export interface PromoterArtist {
 
 export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
   {
-    id: 2001,
+    id: "mock-2001",
     name: "The Velvet Echoes",
     imageUrl:
       "https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=800&q=80",
@@ -641,7 +641,7 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2025-09-12",
   },
   {
-    id: 2002,
+    id: "mock-2002",
     name: "Noa Vidal",
     imageUrl:
       "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80",
@@ -661,7 +661,7 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2025-11-03",
   },
   {
-    id: 2003,
+    id: "mock-2003",
     name: "Cesc & La Banda",
     imageUrl:
       "https://images.unsplash.com/photo-1501386761578-eaa54b4a6db5?w=800&q=80",
@@ -679,7 +679,7 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2026-01-20",
   },
   {
-    id: 2004,
+    id: "mock-2004",
     name: "Kiara Moon",
     imageUrl:
       "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&q=80",
@@ -698,7 +698,7 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2026-02-14",
   },
   {
-    id: 2005,
+    id: "mock-2005",
     name: "DJ Lúmen",
     imageUrl:
       "https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=800&q=80",
@@ -716,7 +716,7 @@ export const MOCK_PROMOTER_ARTISTS: PromoterArtist[] = [
     createdAt: "2025-07-30",
   },
   {
-    id: 2006,
+    id: "mock-2006",
     name: "Ester Fontaine",
     imageUrl:
       "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?w=800&q=80",

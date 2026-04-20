@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -23,11 +23,9 @@ import {
   Euro,
   Filter,
 } from "lucide-react"
-import {
-  MOCK_PROMOTER_ARTISTS,
-  type PromoterArtist,
-  type ArtistStatus,
-} from "@/lib/mock-data"
+import { type PromoterArtist, type ArtistStatus } from "@/lib/mock-data"
+import { getMyArtists } from "@/lib/api/artist"
+import { useAuth } from "@/lib/auth-context"
 
 // ── Status meta ─────────────────────────────────────────────────────────────
 
@@ -66,16 +64,22 @@ const GENRE_FILTERS = [
 const ARTISTS_PER_PAGE = 3
 
 export function ArtistsSection() {
-  const [artists, setArtists] = useState<PromoterArtist[]>(
-    MOCK_PROMOTER_ARTISTS,
-  )
+  const { isLoggedIn } = useAuth()
+  const [artists, setArtists] = useState<PromoterArtist[]>([])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<ArtistStatus | "all">("all")
   const [genreFilter, setGenreFilter] = useState("Todos")
   const [sortBy, setSortBy] = useState<"name" | "rating" | "events">("name")
-  const [deleteId, setDeleteId] = useState<number | null>(null)
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [artistsPage, setArtistsPage] = useState(1)
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    getMyArtists()
+      .then(setArtists)
+      .catch(() => {/* mantener estado vacío en error de red */})
+  }, [isLoggedIn])
 
   const filtered = useMemo(() => {
     return artists
@@ -108,7 +112,7 @@ export function ArtistsSection() {
     artistsPage * ARTISTS_PER_PAGE,
   )
 
-  function handleDelete(id: number) {
+  function handleDelete(id: string) {
     setArtists((prev) => prev.filter((a) => a.id !== id))
     setDeleteId(null)
   }
@@ -304,12 +308,18 @@ function ArtistCard({
       <div className="flex flex-col gap-4 p-5 sm:flex-row">
         {/* Foto */}
         <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
-          <Image
-            src={artist.imageUrl}
-            alt={artist.name}
-            fill
-            className="object-cover grayscale"
-          />
+          {artist.imageUrl ? (
+            <Image
+              src={artist.imageUrl}
+              alt={artist.name}
+              fill
+              className="object-cover grayscale"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <Music2 className="h-8 w-8 text-gray-300" />
+            </div>
+          )}
         </div>
 
         {/* Info principal */}
