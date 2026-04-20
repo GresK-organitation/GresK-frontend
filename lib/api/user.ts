@@ -22,12 +22,13 @@ export interface DashboardMusic {
 }
 
 export interface UserDashboardResponse {
-  userId:  string
-  name:    string
-  tier:    string          // "FREE" | "PREMIUM"
-  points:  number
-  events:  DashboardEvent[]
-  music:   DashboardMusic[]
+  userId:    string
+  name:      string
+  tier:      string          // "FREE" | "PREMIUM"
+  points:    number
+  avatarUrl: string | null
+  events:    DashboardEvent[]
+  music:     DashboardMusic[]
 }
 
 // ── Llamada ──────────────────────────────────────────────────────────────────

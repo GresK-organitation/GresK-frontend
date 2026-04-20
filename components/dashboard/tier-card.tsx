@@ -7,7 +7,7 @@ import { Sparkles } from "@/components/ui/sparkles"
 
 // ── Tiers ───────────────────────────────────────────────────────────────────
 
-const TIER_ORDER = ["BRONZE", "SILVER", "GOLD", "PLATINUM"]
+const TIER_ORDER = ["FREE", "PREMIUM"]
 
 function getNextTier(tier: string): string | null {
   const idx = TIER_ORDER.indexOf(tier.toUpperCase())
