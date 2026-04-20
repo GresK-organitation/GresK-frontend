@@ -9,8 +9,7 @@ import {
 } from "lucide-react"
 import { Navbar }                                           from "@/components/dashboard/navbar"
 import { TierCard }                                         from "@/components/dashboard/tier-card"
-import { MOCK_RECOMMENDED_TRACKS, type RecommendedTrack }  from "@/lib/mock-data"
-import { getUserDashboard, type DashboardEvent }            from "@/lib/api/user"
+import { getUserDashboard, type DashboardEvent, type DashboardMusic, type UserDashboardResponse } from "@/lib/api/user"
 import { getLastMinuteEvents, type EventResponse }          from "@/lib/api/events"
 import {
   formatShortDate,
@@ -19,7 +18,14 @@ import {
   formatPrice,
 }                                                           from "@/lib/utils/format"
 
+// Puntos requeridos para subir de tier
+const NEXT_TIER_POINTS: Record<string, number> = {
+  FREE:    1000,
+  PREMIUM: 1000, // ya en el máximo
+}
+
 export default function FeedPage() {
+  const [dashboard,        setDashboard]        = useState<UserDashboardResponse | null>(null)
   const [featuredEvent,    setFeaturedEvent]    = useState<DashboardEvent | null>(null)
   const [lastMinuteEvents, setLastMinuteEvents] = useState<EventResponse[]>([])
   const [loading,          setLoading]          = useState(true)
@@ -27,12 +33,12 @@ export default function FeedPage() {
   useEffect(() => {
     async function loadFeedData() {
       try {
-        // Ambas llamadas se lanzan en paralelo
-        const [dashboard, lastMinute] = await Promise.all([
+        const [dash, lastMinute] = await Promise.all([
           getUserDashboard(),
           getLastMinuteEvents(),
         ])
-        setFeaturedEvent(dashboard.events[0] ?? null)
+        setDashboard(dash)
+        setFeaturedEvent(dash.events[0] ?? null)
         setLastMinuteEvents(lastMinute.slice(0, 3))
       } catch (err) {
         console.error("Error cargando feed:", err)
@@ -51,21 +57,24 @@ export default function FeedPage() {
 
         {/* ── Bienvenida ── */}
         <div className="mb-4">
-          <p className="text-2xl font-black text-black">Hola, Javi 👋</p>
+          <p className="text-2xl font-black text-black">
+            Hola, {dashboard?.name ?? "…"} 👋
+          </p>
         </div>
 
         {/* ── Tier & progreso ── */}
         <section className="mb-12">
-          <TierCard
-            tier="SILVER"
-            currentPoints={620}
-            nextTierPoints={1000}
-            userName="Javi"
-            userAvatarUrl="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200&q=80"
-            eventsCount={6}
-            avgRating={4.6}
-            pointsThisMonth={125}
-          />
+          {loading ? (
+            <div className="h-40 w-full animate-pulse rounded-3xl bg-gray-100" />
+          ) : dashboard && (
+            <TierCard
+              tier={dashboard.tier}
+              currentPoints={dashboard.points}
+              nextTierPoints={NEXT_TIER_POINTS[dashboard.tier] ?? 1000}
+              userName={dashboard.name}
+              userAvatarUrl={dashboard.avatarUrl ?? undefined}
+            />
+          )}
         </section>
 
         {/* ── Accesos rápidos ── */}
@@ -167,7 +176,7 @@ export default function FeedPage() {
           )}
         </section>
 
-        {/* ── Canciones recomendadas (mock — scope separado) ── */}
+        {/* ── Canciones recomendadas (Spotify) ── */}
         <section className="mb-16">
           <div className="mb-6 flex items-end justify-between gap-3">
             <div>
@@ -179,18 +188,30 @@ export default function FeedPage() {
               </div>
               <h2 className="mt-1 text-2xl font-black text-black">Canciones recomendadas</h2>
               <p className="mt-1 text-sm font-medium text-gray-500">
-                Descubre temas nuevos basados en tu actividad en GresK.
+                Basadas en tus géneros favoritos, vía Spotify.
               </p>
             </div>
-            <button className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-black transition-all hover:border-black hover:shadow-lg">
-              Abrir playlist <ArrowRight className="h-3 w-3" />
-            </button>
           </div>
-          <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white">
-            {MOCK_RECOMMENDED_TRACKS.slice(0, 3).map((track, i) => (
-              <TrackRow key={track.id} track={track} index={i + 1} isLast={i === 2} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="h-48 w-full animate-pulse rounded-3xl bg-gray-100" />
+          ) : (dashboard?.music ?? []).length > 0 ? (
+            <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white">
+              {(dashboard!.music).slice(0, 6).map((track, i, arr) => (
+                <SpotifyTrackRow
+                  key={track.spotifyUrl}
+                  track={track}
+                  index={i + 1}
+                  isLast={i === arr.length - 1}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="flex h-36 items-center justify-center rounded-3xl border border-gray-200 bg-gray-50">
+              <p className="text-sm font-medium text-gray-400">
+                Sin recomendaciones por ahora
+              </p>
+            </div>
+          )}
         </section>
 
         {/* ── Última hora ── */}
@@ -277,14 +298,14 @@ export default function FeedPage() {
   )
 }
 
-// ── TrackRow ─────────────────────────────────────────────────────────────────
+// ── SpotifyTrackRow ──────────────────────────────────────────────────────────
 
-function TrackRow({
+function SpotifyTrackRow({
   track,
   index,
   isLast,
 }: {
-  track:  RecommendedTrack
+  track:  DashboardMusic
   index:  number
   isLast: boolean
 }) {
@@ -299,60 +320,54 @@ function TrackRow({
         <span className="text-xs font-black text-gray-400 group-hover:opacity-0">
           {String(index).padStart(2, "0")}
         </span>
-        <button
-          aria-label="Reproducir"
+        <a
+          href={track.spotifyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Abrir en Spotify"
           className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
         >
           <Play className="h-4 w-4 fill-black text-black" />
-        </button>
+        </a>
       </div>
 
       {/* Cover */}
       <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-gray-200">
-        <Image
-          src={track.coverUrl}
-          alt={track.album}
-          fill
-          className="object-cover grayscale"
-        />
+        {track.imageUrl ? (
+          <Image
+            src={track.imageUrl}
+            alt={track.trackName}
+            fill
+            className="object-cover grayscale"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gray-100">
+            <Music2 className="h-5 w-5 text-gray-400" />
+          </div>
+        )}
       </div>
 
       {/* Info */}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-black">{track.title}</p>
-        <p className="truncate text-xs font-medium text-gray-500">
-          {track.artist} · {track.album}
-        </p>
+        <p className="truncate text-sm font-bold text-black">{track.trackName}</p>
+        <p className="truncate text-xs font-medium text-gray-500">{track.artistName}</p>
       </div>
 
-      {/* Reason chip */}
+      {/* Genre chip */}
       <span className="hidden shrink-0 rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-600 sm:inline-block">
-        {track.reason}
+        {track.genre}
       </span>
 
-      {/* Duration */}
-      <span className="hidden shrink-0 text-xs font-semibold tabular-nums text-gray-500 md:inline">
-        {track.duration}
-      </span>
-
-      {/* Like */}
-      <button
-        aria-label="Guardar"
+      {/* Spotify link */}
+      <a
+        href={track.spotifyUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Abrir en Spotify"
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black hover:text-white"
       >
         <Heart className="h-3.5 w-3.5" />
-      </button>
-
-      {/* Link to related event */}
-      {track.relatedEventId && (
-        <Link
-          href={`/events/${track.relatedEventId}`}
-          aria-label="Ver evento"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-black hover:text-white"
-        >
-          <Ticket className="h-3.5 w-3.5" />
-        </Link>
-      )}
+      </a>
     </div>
   )
 }
