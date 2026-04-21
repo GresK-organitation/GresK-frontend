@@ -62,20 +62,24 @@ function isThisWeek(dateStr: string): boolean {
 
 // ── Filtros ──────────────────────────────────────────────────────────────────
 
-const FILTERS = [
+const DATE_FILTERS = [
   { label: "Todos", value: null },
   { label: "Hoy", value: "HOY" },
   { label: "Esta semana", value: "SEMANA" },
-  { label: "Electronic", value: "Electronic" },
-  { label: "Indie", value: "Indie" },
-  { label: "Pop / Rock", value: "Pop" },
 ]
 
 function matchesFilter(event: EventLocation, filter: string | null): boolean {
   if (!filter) return true
   if (filter === "HOY") return isToday(event.date)
   if (filter === "SEMANA") return isThisWeek(event.date)
-  return (event.genre ?? "").toLowerCase().includes(filter.toLowerCase())
+  return (event.genre ?? "").toUpperCase() === filter.toUpperCase()
+}
+
+function buildFilters(events: EventLocation[]) {
+  const genres = Array.from(new Set(events.map((e) => e.genre).filter(Boolean) as string[]))
+    .sort()
+    .map((g) => ({ label: g.charAt(0) + g.slice(1).toLowerCase().replace(/_/g, " "), value: g }))
+  return [...DATE_FILTERS, ...genres]
 }
 
 // ── Marker ───────────────────────────────────────────────────────────────────
@@ -105,18 +109,20 @@ function EventMarker({ event, selected }: { event: EventLocation; selected: bool
 
 interface EventPanelProps {
   events: EventLocation[]
+  allEvents: EventLocation[]
   activeFilter: string | null
-  selectedId: number | null
+  selectedId: string | null
   onFilterChange: (f: string | null) => void
   onEventClick: (event: EventLocation) => void
 }
 
-function EventPanel({ events, activeFilter, selectedId, onFilterChange, onEventClick }: EventPanelProps) {
+function EventPanel({ events, allEvents, activeFilter, selectedId, onFilterChange, onEventClick }: EventPanelProps) {
+  const filters = useMemo(() => buildFilters(allEvents), [allEvents])
   return (
     <div className="flex h-full w-full flex-col border-l border-l-gray-200 bg-white">
       {/* Filtros */}
       <div className="flex gap-2 overflow-x-auto px-5 py-5 scrollbar-none shrink-0">
-        {FILTERS.map((f) => (
+        {filters.map((f) => (
           <button
             key={f.label}
             onClick={() => onFilterChange(f.value)}
@@ -212,9 +218,14 @@ export function EventMap({ events }: EventMapProps) {
   const [selectedEvent, setSelectedEvent] = useState<EventLocation | null>(null)
   const [activeFilter, setActiveFilter] = useState<string | null>(null)
 
+  const validEvents = useMemo(
+    () => events.filter((e) => e.latitude !== 0 && e.longitude !== 0),
+    [events]
+  )
+
   const filteredEvents = useMemo(
-    () => events.filter((e) => matchesFilter(e, activeFilter)),
-    [events, activeFilter]
+    () => validEvents.filter((e) => matchesFilter(e, activeFilter)),
+    [validEvents, activeFilter]
   )
 
   const handleMarkerClick = useCallback((event: EventLocation) => {
@@ -240,6 +251,7 @@ export function EventMap({ events }: EventMapProps) {
           initialViewState={{ longitude: 2.1734, latitude: 41.3851, zoom: 10.5 }}
           style={{ width: "100%", height: "100%" }}
           mapStyle="mapbox://styles/mapbox/light-v11"
+          reuseMaps
           onClick={() => setSelectedEvent(null)}
         >
           {filteredEvents.map((event) => (
@@ -292,6 +304,7 @@ export function EventMap({ events }: EventMapProps) {
       <div className="flex-[2] overflow-hidden">
         <EventPanel
           events={filteredEvents}
+          allEvents={validEvents}
           activeFilter={activeFilter}
           selectedId={selectedEvent?.id ?? null}
           onFilterChange={setActiveFilter}

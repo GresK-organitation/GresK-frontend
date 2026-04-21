@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { useAuth } from "@/lib/auth-context"
@@ -11,6 +11,12 @@ export function Navbar() {
   const [authOpen, setAuthOpen] = useState(false)
   const { isLoggedIn, role, logout } = useAuth()
   const pathname = usePathname()
+  const router = useRouter()
+
+  function handleLogout() {
+    logout()
+    router.push("/")
+  }
 
   const isFeed = pathname === "/feed"
   const isPromoter = role === "promoter"
@@ -66,28 +72,18 @@ export function Navbar() {
               </>
             )}
 
-            {!isFeed && !isPromoter && !isAdmin && !isLoggedIn && (
-              <Button
-                asChild
-                variant="ghost"
-                className="rounded-full text-sm font-medium text-gray-600 hover:text-black"
-              >
-                <Link href="/trabaja-con-nosotros">Trabaja con nosotros</Link>
-              </Button>
-            )}
-
             {!isLoggedIn && (
               <Button
                 onClick={() => setAuthOpen(true)}
                 className="rounded-full bg-black text-white text-sm font-semibold hover:bg-gray-800"
               >
-                Registro / Login
+                Login
               </Button>
             )}
 
             {isLoggedIn && (
               <Button
-                onClick={logout}
+                onClick={handleLogout}
                 variant="ghost"
                 className="rounded-full text-sm font-medium text-gray-600 hover:text-black"
               >

@@ -14,8 +14,8 @@ export interface DashboardEvent {
 }
 
 export interface DashboardMusic {
-  trackName:  string
-  artistName: string
+  title:      string
+  artist:     string
   spotifyUrl: string
   imageUrl:   string
   genre:      string
