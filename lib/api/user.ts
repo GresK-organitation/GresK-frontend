@@ -22,16 +22,24 @@ export interface DashboardMusic {
 }
 
 export interface UserDashboardResponse {
-  userId:    string
-  name:      string
-  tier:      string          // "FREE" | "PREMIUM"
-  points:    number
-  avatarUrl: string | null
-  events:    DashboardEvent[]
-  music:     DashboardMusic[]
+  userId:      string
+  name:        string
+  tier:        string          // "FREE" | "PREMIUM"
+  points:      number
+  avatarUrl:   string | null
+  musicGenres: string[]
+  events:      DashboardEvent[]
+  music:       DashboardMusic[]
 }
 
-// ── Llamada ──────────────────────────────────────────────────────────────────
+export interface UpdateUserProfilePayload {
+  name:        string
+  description: string
+  city:        string
+  musicGenres: string[]
+}
+
+// ── Llamadas ─────────────────────────────────────────────────────────────────
 
 export async function getUserDashboard(): Promise<UserDashboardResponse> {
   const res = await authedFetch("/api/v1/users/me/dashboard")
@@ -40,4 +48,15 @@ export async function getUserDashboard(): Promise<UserDashboardResponse> {
     throw new ApiException(res.status, body.error ?? "Error al cargar el dashboard")
   }
   return res.json()
+}
+
+export async function updateUserProfile(payload: UpdateUserProfilePayload): Promise<void> {
+  const res = await authedFetch("/api/v1/users/me", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al actualizar el perfil")
+  }
 }

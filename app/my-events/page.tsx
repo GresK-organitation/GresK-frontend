@@ -8,6 +8,7 @@ import {
   MapPin,
   Star,
   ArrowRight,
+  ChevronLeft,
   ChevronDown,
   Mic2,
   Volume2,
@@ -248,6 +249,15 @@ export default function MyEventsPage() {
       <Navbar />
 
       <main className="mx-auto max-w-4xl px-4 pt-24 pb-16 md:px-8">
+        {/* Volver al Feed */}
+        <Link
+          href="/feed"
+          className="mb-8 inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:text-black transition-colors"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Volver al Feed
+        </Link>
+
         {/* Header */}
         <section className="mb-10 flex flex-wrap items-start justify-between gap-4">
           <div>
