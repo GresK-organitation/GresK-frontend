@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Crown, User, ArrowRight, Pencil, Music2 } from "lucide-react"
-import { Sparkles } from "@/components/ui/sparkles"
+import { User, Pencil, Music2 } from "lucide-react"
 
-// ── Tiers ───────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 const TIER_ORDER = ["FREE", "PREMIUM"]
 
@@ -57,69 +56,55 @@ export function TierCard({
   }, [target])
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 transition-all hover:shadow-lg">
+    <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 transition-all hover:shadow-lg">
 
-      {/* ── Botones superiores (edit + pts) ── */}
-      <div className="absolute right-5 top-5 flex items-center gap-2">
-        {onEditProfile && (
-          <button
-            onClick={onEditProfile}
-            className="flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:border-black"
-          >
-            <Pencil className="h-3 w-3" />
-            Editar
-          </button>
-        )}
-        <div className="rounded-full bg-black px-4 py-1.5">
-          <span className="text-xs font-bold text-white">{currentPoints} pts</span>
-        </div>
-      </div>
+      {/* ── Fila principal: avatar + panel derecho ── */}
+      <div className="flex items-center gap-6">
 
-      {/* ── Fila principal: avatar izq + stats der ── */}
-      <div className="flex items-center gap-6 pr-28">
-        {/* Avatar grande + tier debajo */}
-        <div className="flex shrink-0 flex-col items-center gap-2.5">
-          <div className="relative h-24 w-24 overflow-hidden rounded-full border-2 border-gray-200 bg-gray-50">
-            {userAvatarUrl ? (
-              <Image
-                src={userAvatarUrl}
-                alt={userName}
-                fill
-                className="object-cover grayscale"
-              />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center">
-                <User className="h-8 w-8 text-gray-400" />
-              </div>
-            )}
-          </div>
-
-          {/* Tier badge bajo el avatar */}
-          <div className="flex items-center gap-1.5">
-            <div className="relative">
-              <Crown className="h-4 w-4 text-black" />
-              <Sparkles count={3} color="#000000" size="sm" className="absolute -right-2 -top-2" />
+        {/* Avatar */}
+        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 bg-gray-50">
+          {userAvatarUrl ? (
+            <Image
+              src={userAvatarUrl}
+              alt={userName}
+              fill
+              className="object-cover grayscale"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <User className="h-10 w-10 text-gray-400" />
             </div>
-            <span className="text-sm font-black tracking-tight text-black">{tier}</span>
-            {nextTier && (
-              <>
-                <ArrowRight className="h-3 w-3 text-gray-400" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                  {nextTier}
-                </span>
-              </>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* Stats a la derecha del avatar */}
-        <div className="flex flex-1 divide-x divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
-          <StatItem value={eventsCount.toString()} label="Eventos" />
-          <StatItem
-            value={avgRating > 0 ? avgRating.toFixed(1) + "★" : "—"}
-            label="Media"
-          />
-          <StatItem value={`+${pointsThisMonth}`} label="Pts este mes" />
+        {/* Panel derecho: botones arriba, stats abajo */}
+        <div className="flex flex-1 flex-col justify-between gap-3">
+
+          {/* Fila superior: edit + pts */}
+          <div className="flex items-center justify-end gap-2">
+            {onEditProfile && (
+              <button
+                onClick={onEditProfile}
+                className="flex items-center gap-1.5 rounded-full border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-black transition-colors hover:border-black"
+              >
+                <Pencil className="h-3 w-3" />
+                Editar
+              </button>
+            )}
+            <div className="rounded-full bg-black px-4 py-1.5">
+              <span className="text-xs font-bold text-white">{currentPoints} pts</span>
+            </div>
+          </div>
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-3 divide-x divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-gray-50">
+            <StatItem value={eventsCount.toString()} label="Eventos" />
+            <StatItem
+              value={avgRating > 0 ? avgRating.toFixed(1) + "★" : "—"}
+              label="Media"
+            />
+            <StatItem value={`+${pointsThisMonth}`} label="Pts este mes" />
+          </div>
         </div>
       </div>
 
@@ -183,7 +168,7 @@ export function TierCard({
 
 function StatItem({ value, label }: { value: string; label: string }) {
   return (
-    <div className="flex flex-1 flex-col items-center py-4">
+    <div className="flex flex-col items-center py-4">
       <span className="text-xl font-black text-black">{value}</span>
       <span className="mt-1 text-[9px] font-bold uppercase tracking-widest text-gray-500">
         {label}
