@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 import { useAuth } from "@/lib/auth-context"
 import {
   Dialog,
@@ -32,18 +31,6 @@ export function AuthModal({ open, onClose }: AuthModalProps) {
 
         <LoginForm onClose={onClose} />
 
-        <div className="mt-2 border-t border-gray-100 pt-4">
-          <p className="text-center text-xs text-gray-400">
-            ¿Primera vez?{" "}
-            <Link
-              href="/registro"
-              onClick={onClose}
-              className="font-bold text-black underline underline-offset-2"
-            >
-              Crear cuenta →
-            </Link>
-          </p>
-        </div>
       </DialogContent>
     </Dialog>
   )

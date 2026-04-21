@@ -1,5 +1,14 @@
 import { authedFetch, ApiException } from "./client"
 
+// ── Paginación ────────────────────────────────────────────────────────────────
+
+interface PageResponse<T> {
+  content: T[]
+  total: number
+  page: number
+  size: number
+}
+
 // ── Tipos ────────────────────────────────────────────────────────────────────
 
 export interface CreateEventPayload {
@@ -97,13 +106,35 @@ export async function getLastMinuteEvents(): Promise<EventResponse[]> {
 
 // ── Listar todos los eventos ─────────────────────────────────────────────────
 
-export async function getEvents(): Promise<EventResponse[]> {
-  const res = await authedFetch("/api/v1/events")
+export async function getEvents(params?: {
+  genre?: string
+  city?: string
+  dateFrom?: string
+  dateTo?: string
+  minPrice?: number
+  maxPrice?: number
+  artistName?: string
+  page?: number
+  size?: number
+}): Promise<EventResponse[]> {
+  const qs = new URLSearchParams()
+  if (params?.genre)      qs.set("genre",      params.genre)
+  if (params?.city)       qs.set("city",        params.city)
+  if (params?.dateFrom)   qs.set("dateFrom",    params.dateFrom)
+  if (params?.dateTo)     qs.set("dateTo",      params.dateTo)
+  if (params?.minPrice != null) qs.set("minPrice", String(params.minPrice))
+  if (params?.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))
+  if (params?.artistName) qs.set("artistName",  params.artistName)
+  qs.set("page", String(params?.page ?? 0))
+  qs.set("size", String(params?.size ?? 50))
+
+  const res = await authedFetch(`/api/v1/events?${qs.toString()}`)
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Error desconocido" }))
     throw new ApiException(res.status, body.error ?? "Error al cargar eventos")
   }
-  return res.json()
+  const page: PageResponse<EventResponse> = await res.json()
+  return page.content
 }
 
 // ── Ticket purchase ───────────────────────────────────────────────────────────

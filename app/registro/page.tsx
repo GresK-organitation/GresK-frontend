@@ -6,7 +6,7 @@ import Link from "next/link"
 import { ChevronLeft, ArrowRight, Check, MapPin, User, Music2 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
-import { registerUser } from "@/lib/api/auth"
+import { registerUser, loginUser } from "@/lib/api/auth"
 import { ApiException } from "@/lib/api/client"
 
 // ── Datos ────────────────────────────────────────────────────────────────────
@@ -81,7 +81,7 @@ export default function RegistroPage() {
     const finalCity = city === "Otra ciudad" ? customCity : city
 
     try {
-      const { accountId } = await registerUser(
+      await registerUser(
         {
           email,
           password,
@@ -92,7 +92,9 @@ export default function RegistroPage() {
         },
         avatar ?? undefined
       )
-      login("user", accountId)
+      // Auto-login para obtener el JWT y evitar 403 en llamadas posteriores
+      const result = await loginUser(email, password)
+      login(result.role, result.accountId, result.token)
       router.push("/feed")
     } catch (err) {
       if (err instanceof ApiException) {
@@ -363,7 +365,7 @@ function StepGenres({
       <div className="mt-6 flex items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
         <span className="text-lg">🎯</span>
         <p className="text-xs font-bold text-gray-600">
-          Elige al menos <span className="text-black">3 géneros</span> para que tu feed sea realmente tuyo.
+          Mientras más elijas, mejor serán tus recomendaciones.
           {genres.length > 0 && (
             <span className="ml-1 font-black text-black">
               {genres.length} seleccionado{genres.length !== 1 ? "s" : ""}

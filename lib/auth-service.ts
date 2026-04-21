@@ -4,8 +4,8 @@ import type { UserRole } from "@/lib/auth-context"
 // ── Rutas por rol ────────────────────────────────────────────────────────────
 
 const ROLE_ROUTES: Record<UserRole, string> = {
-  promoter: "/dashboard/promoter",
-  user:     "/dashboard/user",
+  promoter: "/promoter",
+  user:     "/feed",
   admin:    "/admin/dashboard",
 }
 

@@ -128,25 +128,65 @@ export default function HomePage() {
 
       <main className="flex-1 pt-24 pb-16">
 
-        {/* ── Hero ───────────────────────────────────────────── */}
+        {/* ── Hero / About ────────────────────────────────────── */}
         <section className="mx-auto w-full max-w-7xl px-4 md:px-8 mb-12">
-          <div className="flex flex-col items-center justify-center rounded-3xl bg-black px-8 py-24 text-center">
-            <h1 className="text-7xl font-black tracking-tighter text-white md:text-9xl">
-              GresK
+          <div className="rounded-3xl bg-black px-8 py-16 md:px-16 md:py-20">
+            {/* Eyebrow */}
+            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/40">
+              Sobre GresK
+            </p>
+
+            {/* Headline */}
+            <h1 className="mt-4 max-w-3xl text-4xl font-black leading-tight tracking-tighter text-white md:text-6xl">
+              Donde la música<br className="hidden md:block" /> te encuentra a ti.
             </h1>
-            <p className="mt-6 max-w-lg text-2xl font-black italic tracking-tight text-white/80 md:text-3xl">
-              Somos el under del under.
+
+            {/* Divider */}
+            <div className="mt-8 h-px w-16 bg-white/20" />
+
+            {/* Why GresK */}
+            <p className="mt-8 text-xs font-bold uppercase tracking-widest text-white/40">
+              ¿Por qué elegir GresK?
             </p>
-            <p className="mt-3 max-w-sm text-sm font-medium leading-relaxed text-white/40">
-              Los conciertos que no salen en ningún algoritmo.<br />
-              Los artistas de los que hablarás dentro de dos años.
+
+            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                {
+                  title: "Planes a tu medida",
+                  body: "Recibe recomendaciones personalizadas basadas en tus gustos y ubicación para que nunca te pierdas un evento que te apasione.",
+                },
+                {
+                  title: "Gana mientras disfrutas",
+                  body: "Nuestra experiencia está gamificada. Por cada concierto al que asistas o reseña que compartas, acumulas puntos canjeables por recompensas exclusivas.",
+                },
+                {
+                  title: "Comunidad Real",
+                  body: "Accede a valoraciones de asistentes verificados y conecta con otras personas que comparten tu mismo estilo musical.",
+                },
+                {
+                  title: "Cultura en vivo",
+                  body: "Nuestra misión es revitalizar la cultura en vivo, apoyando a las salas locales y dando visibilidad al talento que merece ser escuchado.",
+                },
+              ].map(({ title, body }) => (
+                <div key={title} className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
+                  <p className="text-sm font-black text-white">{title}</p>
+                  <p className="text-xs font-medium leading-relaxed text-white/50">{body}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Closing line */}
+            <p className="mt-10 max-w-xl text-sm font-medium leading-relaxed text-white/60">
+              Únete a la comunidad y vive la música de una forma más social, dinámica y cercana.
             </p>
-            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+
+            {/* CTAs */}
+            <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link
-                href="/discover"
+                href="/registro"
                 className="rounded-full bg-white px-7 py-3 text-sm font-bold text-black transition-all hover:bg-gray-100"
               >
-                Descubrir eventos →
+                Crear cuenta →
               </Link>
               <Link
                 href="/trabaja-con-nosotros"
