@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
-import { Crown, User, ArrowRight } from "lucide-react"
+import { Crown, User, ArrowRight, Pencil } from "lucide-react"
 import { Sparkles } from "@/components/ui/sparkles"
 
 // ── Tiers ───────────────────────────────────────────────────────────────────
@@ -33,6 +33,9 @@ interface TierCardProps {
   eventsCount?: number
   avgRating?: number
   pointsThisMonth?: number
+  musicGenres?: string[]
+  onEditProfile?: () => void
+  onEditGenres?: () => void
 }
 
 // ── Componente ──────────────────────────────────────────────────────────────
@@ -46,6 +49,9 @@ export function TierCard({
   eventsCount = 0,
   avgRating = 0,
   pointsThisMonth = 0,
+  musicGenres = [],
+  onEditProfile,
+  onEditGenres,
 }: TierCardProps) {
   const target = (currentPoints / nextTierPoints) * 100
   const pointsRemaining = nextTierPoints - currentPoints
@@ -103,10 +109,21 @@ export function TierCard({
               )}
             </div>
 
-            <div className="shrink-0 rounded-full bg-black px-3 py-1">
-              <span className="text-xs font-bold text-white">
-                {currentPoints} pts
-              </span>
+            <div className="flex shrink-0 items-center gap-2">
+              {onEditProfile && (
+                <button
+                  onClick={onEditProfile}
+                  className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-3 py-1 text-xs font-semibold text-black hover:border-black transition-colors"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Editar
+                </button>
+              )}
+              <div className="rounded-full bg-black px-3 py-1">
+                <span className="text-xs font-bold text-white">
+                  {currentPoints} pts
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -145,6 +162,29 @@ export function TierCard({
         />
         <StatItem value={`+${pointsThisMonth}`} label="Pts este mes" />
       </div>
+
+      {/* Géneros musicales */}
+      {musicGenres.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          {musicGenres.map((g) => (
+            <span
+              key={g}
+              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-600"
+            >
+              {g}
+            </span>
+          ))}
+          {onEditGenres && (
+            <button
+              onClick={onEditGenres}
+              className="flex items-center gap-1 rounded-full border border-gray-300 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-600 hover:border-black hover:text-black transition-colors"
+            >
+              <Pencil className="h-2.5 w-2.5" />
+              Editar
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

@@ -49,23 +49,6 @@ export function Navbar() {
               </Button>
             )}
 
-            {isFeed && !isPromoter && !isAdmin && (
-              <>
-                <Button
-                  asChild
-                  className="rounded-full border border-gray-300 bg-white text-black text-sm font-semibold hover:bg-gray-50 hover:border-black shadow-none"
-                >
-                  <Link href="/discover">Descubrir</Link>
-                </Button>
-                <Button
-                  asChild
-                  className="rounded-full border border-gray-300 bg-white text-black text-sm font-semibold hover:bg-gray-50 hover:border-black shadow-none"
-                >
-                  <Link href="/my-events">Mis Eventos</Link>
-                </Button>
-              </>
-            )}
-
             {isLoggedIn && isPromoter && (
               <>
                 <Button
@@ -81,15 +64,6 @@ export function Navbar() {
                   <Link href="/promoter/new-event">+ Nuevo evento</Link>
                 </Button>
               </>
-            )}
-
-            {!isFeed && !isPromoter && !isAdmin && isLoggedIn && (
-              <Button
-                asChild
-                className="rounded-full border border-gray-300 bg-white text-black text-sm font-semibold hover:bg-gray-50 hover:border-black shadow-none"
-              >
-                <Link href="/my-events">Mis Eventos</Link>
-              </Button>
             )}
 
             {!isFeed && !isPromoter && !isAdmin && !isLoggedIn && (

@@ -5,12 +5,19 @@ import Image                                                from "next/image"
 import Link                                                 from "next/link"
 import {
   Calendar, Clock, MapPin, Sparkles, Zap,
-  ArrowRight, Ticket, Music2, Play, Heart,
+  ArrowRight, Ticket, Music2, Play, Heart, X,
 } from "lucide-react"
 import { Navbar }                                           from "@/components/dashboard/navbar"
 import { TierCard }                                         from "@/components/dashboard/tier-card"
-import { getUserDashboard, type DashboardEvent, type DashboardMusic, type UserDashboardResponse } from "@/lib/api/user"
+import {
+  getUserDashboard,
+  updateUserProfile,
+  type DashboardEvent,
+  type DashboardMusic,
+  type UserDashboardResponse,
+} from "@/lib/api/user"
 import { getLastMinuteEvents, type EventResponse }          from "@/lib/api/events"
+import { getUserAttendedEvents }                            from "@/lib/api/reviews"
 import {
   formatShortDate,
   formatEventDate,
@@ -21,8 +28,14 @@ import {
 // Puntos requeridos para subir de tier
 const NEXT_TIER_POINTS: Record<string, number> = {
   FREE:    1000,
-  PREMIUM: 1000, // ya en el máximo
+  PREMIUM: 1000,
 }
+
+const ALL_GENRES = [
+  "ROCK", "POP", "TECHNO", "REGGAETON", "HIP_HOP", "HOUSE",
+  "INDIE", "METAL", "TRAP", "JAZZ", "CLASSICAL", "FLAMENCO",
+  "R_AND_B", "PUNK", "LATIN_JAZZ", "ELECTRONIC", "SURPRISE",
+]
 
 export default function FeedPage() {
   const [dashboard,        setDashboard]        = useState<UserDashboardResponse | null>(null)
@@ -30,16 +43,52 @@ export default function FeedPage() {
   const [lastMinuteEvents, setLastMinuteEvents] = useState<EventResponse[]>([])
   const [loading,          setLoading]          = useState(true)
 
+  // Stats derivados de eventos asistidos
+  const [eventsCount,      setEventsCount]      = useState(0)
+  const [avgRating,        setAvgRating]        = useState(0)
+  const [pointsThisMonth,  setPointsThisMonth]  = useState(0)
+
+  // Modales
+  const [showEditProfile, setShowEditProfile] = useState(false)
+  const [showEditGenres,  setShowEditGenres]  = useState(false)
+
+  // Estado del form editar perfil
+  const [editName, setEditName] = useState("")
+  const [editCity, setEditCity] = useState("")
+  const [editSaving, setEditSaving] = useState(false)
+
+  // Estado del form editar géneros
+  const [editGenres,  setEditGenres]  = useState<string[]>([])
+  const [genreSaving, setGenreSaving] = useState(false)
+
   useEffect(() => {
     async function loadFeedData() {
       try {
-        const [dash, lastMinute] = await Promise.all([
+        const [dash, lastMinute, attended] = await Promise.all([
           getUserDashboard(),
           getLastMinuteEvents(),
+          getUserAttendedEvents(),
         ])
         setDashboard(dash)
         setFeaturedEvent(dash.events[0] ?? null)
-        setLastMinuteEvents(lastMinute.slice(0, 3))
+        setLastMinuteEvents(lastMinute)
+
+        // Calcular stats desde eventos asistidos
+        setEventsCount(attended.length)
+
+        const reviewed = attended.filter((e) => !e.pending && e.overallRating > 0)
+        if (reviewed.length > 0) {
+          const avg = reviewed.reduce((acc, e) => acc + e.overallRating, 0) / reviewed.length
+          setAvgRating(avg)
+        }
+
+        const now = new Date()
+        const thisMonth = attended.filter((e) => {
+          if (!e.date) return false
+          const d = new Date(e.date)
+          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+        })
+        setPointsThisMonth(thisMonth.reduce((acc, e) => acc + e.pointsAwarded, 0))
       } catch (err) {
         console.error("Error cargando feed:", err)
       } finally {
@@ -48,6 +97,61 @@ export default function FeedPage() {
     }
     loadFeedData()
   }, [])
+
+  function openEditProfile() {
+    setEditName(dashboard?.name ?? "")
+    setEditCity("")
+    setShowEditProfile(true)
+  }
+
+  function openEditGenres() {
+    setEditGenres(dashboard?.musicGenres ?? [])
+    setShowEditGenres(true)
+  }
+
+  async function handleSaveProfile() {
+    if (!dashboard) return
+    setEditSaving(true)
+    try {
+      await updateUserProfile({
+        name:        editName,
+        description: "",
+        city:        editCity,
+        musicGenres: dashboard.musicGenres,
+      })
+      setDashboard({ ...dashboard, name: editName })
+      setShowEditProfile(false)
+    } catch (err) {
+      console.error("Error actualizando perfil:", err)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  async function handleSaveGenres() {
+    if (!dashboard) return
+    setGenreSaving(true)
+    try {
+      await updateUserProfile({
+        name:        dashboard.name,
+        description: "",
+        city:        editCity,
+        musicGenres: editGenres,
+      })
+      setDashboard({ ...dashboard, musicGenres: editGenres })
+      setShowEditGenres(false)
+    } catch (err) {
+      console.error("Error actualizando géneros:", err)
+    } finally {
+      setGenreSaving(false)
+    }
+  }
+
+  function toggleGenre(g: string) {
+    setEditGenres((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -73,22 +177,18 @@ export default function FeedPage() {
               nextTierPoints={NEXT_TIER_POINTS[dashboard.tier] ?? 1000}
               userName={dashboard.name}
               userAvatarUrl={dashboard.avatarUrl ?? undefined}
+              eventsCount={eventsCount}
+              avgRating={avgRating}
+              pointsThisMonth={pointsThisMonth}
+              musicGenres={dashboard.musicGenres}
+              onEditProfile={openEditProfile}
+              onEditGenres={openEditGenres}
             />
           )}
         </section>
 
         {/* ── Accesos rápidos ── */}
-        <div className="mb-12 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Link
-            href="/discover"
-            className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md"
-          >
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Explorar</p>
-              <p className="mt-0.5 text-sm font-black text-black">Descubrir</p>
-            </div>
-            <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-1 group-hover:text-black" />
-          </Link>
+        <div className="mb-12 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Link
             href="/my-events"
             className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md"
@@ -101,7 +201,7 @@ export default function FeedPage() {
           </Link>
           <Link
             href="/my-tickets"
-            className="group col-span-2 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md sm:col-span-1"
+            className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md"
           >
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Entradas</p>
@@ -227,13 +327,13 @@ export default function FeedPage() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {[0, 1, 2].map((i) => (
                 <div key={i} className="h-56 animate-pulse rounded-3xl bg-gray-100" />
               ))}
             </div>
           ) : lastMinuteEvents.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {lastMinuteEvents.map((event) => (
                 <Link
                   key={event.id}
@@ -269,12 +369,20 @@ export default function FeedPage() {
 
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 line-through">
-                          {formatPrice(event.amount)}
-                        </span>
-                        <span className="text-base font-black text-black">
-                          {formatPrice(event.discountedAmount ?? event.amount)}
-                        </span>
+                        {event.discountedAmount != null ? (
+                          <>
+                            <span className="text-xs text-gray-400 line-through">
+                              {formatPrice(event.amount)}
+                            </span>
+                            <span className="text-base font-black text-black">
+                              {formatPrice(event.discountedAmount)}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-base font-black text-black">
+                            {formatPrice(event.amount)}
+                          </span>
+                        )}
                       </div>
                       <span className="flex items-center gap-1 rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white transition-transform group-hover:translate-x-0.5">
                         <Ticket className="h-3.5 w-3.5" /> Ver
@@ -294,6 +402,103 @@ export default function FeedPage() {
         </section>
 
       </main>
+
+      {/* ── Modal: Editar perfil ── */}
+      {showEditProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-black text-black">Editar perfil</h2>
+              <button onClick={() => setShowEditProfile(false)} className="rounded-full p-1 hover:bg-gray-100">
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Nombre
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-black outline-none focus:border-black"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Ciudad
+                </label>
+                <input
+                  type="text"
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm font-medium text-black outline-none focus:border-black"
+                />
+              </div>
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowEditProfile(false)}
+                className="flex-1 rounded-full border border-gray-300 py-2.5 text-sm font-semibold text-black hover:border-black"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveProfile}
+                disabled={editSaving || !editName.trim() || !editCity.trim()}
+                className="flex-1 rounded-full bg-black py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                {editSaving ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Editar géneros ── */}
+      {showEditGenres && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-black text-black">Géneros favoritos</h2>
+              <button onClick={() => setShowEditGenres(false)} className="rounded-full p-1 hover:bg-gray-100">
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ALL_GENRES.map((g) => (
+                <button
+                  key={g}
+                  onClick={() => toggleGenre(g)}
+                  className={`rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-widest transition-colors ${
+                    editGenres.includes(g)
+                      ? "border-black bg-black text-white"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-black"
+                  }`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={() => setShowEditGenres(false)}
+                className="flex-1 rounded-full border border-gray-300 py-2.5 text-sm font-semibold text-black hover:border-black"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveGenres}
+                disabled={genreSaving || editGenres.length === 0}
+                className="flex-1 rounded-full bg-black py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                {genreSaving ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
