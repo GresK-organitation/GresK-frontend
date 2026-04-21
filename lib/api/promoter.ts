@@ -35,6 +35,7 @@ export interface PromoterEvent {
   genre:          string
   coverImageUrl:  string | null
   conversionRate: number | null
+  avgRating:      number
 }
 
 // ── API calls ────────────────────────────────────────────────────────────────

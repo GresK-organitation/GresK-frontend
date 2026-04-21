@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import {
@@ -17,45 +17,80 @@ import {
   Check,
 } from "lucide-react"
 import { Navbar } from "@/components/dashboard/navbar"
-import { MOCK_ATTENDED, type AttendedEvent } from "@/lib/mock-data"
+import {
+  getUserAttendedEvents,
+  submitReview,
+  type AttendedEventResponse,
+} from "@/lib/api/reviews"
 
-const CATEGORIES: {
-  key: keyof AttendedEvent["ratings"]
-  label: string
-  icon: React.ElementType
-}[] = [
-  { key: "artista", label: "Artista", icon: Mic2 },
-  { key: "sonido", label: "Sonido", icon: Volume2 },
-  { key: "ambiente", label: "Ambiente", icon: Users },
-  { key: "sala", label: "Sala", icon: Building2 },
-  { key: "repertorio", label: "Repertorio", icon: ListMusic },
+type RatingsKey = "artista" | "sonido" | "ambiente" | "sala" | "repertorio"
+
+const CATEGORIES: { key: RatingsKey; label: string; icon: React.ElementType }[] = [
+  { key: "artista",   label: "Artista",    icon: Mic2 },
+  { key: "sonido",    label: "Sonido",     icon: Volume2 },
+  { key: "ambiente",  label: "Ambiente",   icon: Users },
+  { key: "sala",      label: "Sala",       icon: Building2 },
+  { key: "repertorio",label: "Repertorio", icon: ListMusic },
 ]
 
-// Puntuación actual del usuario (mock)
-const CURRENT_POINTS = 850
-const NEXT_TIER = 1000
-const BASE_POINTS = 50
+const BASE_POINTS   = 50
 const BONUS_COMPLETE = 25
-const BONUS_PHOTO = 20
+const BONUS_PHOTO   = 20
+
+const ES_MONTHS_SHORT = [
+  "ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC",
+]
+
+function fmtDate(iso: string | null): string {
+  if (!iso) return "—"
+  const d = new Date(iso + "T00:00:00")
+  return `${String(d.getDate()).padStart(2,"0")} ${ES_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
+}
 
 export default function ReviewPage() {
   const params = useParams<{ id: string }>()
-  const router = useRouter()
+  const router  = useRouter()
+  const ticketId = params.id
 
-  const event = MOCK_ATTENDED.find((e) => e.id === Number(params.id))
+  const [event, setEvent]     = useState<AttendedEventResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
-  const [ratings, setRatings] = useState<AttendedEvent["ratings"]>({
-    artista: 0,
-    sonido: 0,
-    ambiente: 0,
-    sala: 0,
-    repertorio: 0,
+  const [ratings, setRatings] = useState<Record<RatingsKey, number>>({
+    artista: 0, sonido: 0, ambiente: 0, sala: 0, repertorio: 0,
   })
-  const [comment, setComment] = useState("")
-  const [photo, setPhoto] = useState<string | null>(null)
+  const [comment,   setComment]   = useState("")
+  const [photo,     setPhoto]     = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
-  if (!event) {
+  useEffect(() => {
+    getUserAttendedEvents()
+      .then((list) => {
+        const found = list.find((e) => e.ticketId === ticketId)
+        if (!found || !found.pending) {
+          setNotFound(true)
+        } else {
+          setEvent(found)
+        }
+      })
+      .catch(() => setNotFound(true))
+      .finally(() => setLoading(false))
+  }, [ticketId])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <main className="mx-auto max-w-2xl px-4 pt-32 text-center md:px-8">
+          <p className="text-sm font-bold uppercase tracking-widest text-gray-400">Cargando…</p>
+        </main>
+      </div>
+    )
+  }
+
+  if (notFound || !event) {
     return (
       <div className="min-h-screen bg-white">
         <Navbar />
@@ -72,19 +107,36 @@ export default function ReviewPage() {
     )
   }
 
-  const allRated = Object.values(ratings).every((r) => r > 0)
-  const hasComment = comment.trim().length > 0
+  const allRated    = Object.values(ratings).every((r) => r > 0)
+  const hasComment  = comment.trim().length > 0
   const completeBonus = allRated && hasComment ? BONUS_COMPLETE : 0
-  const photoBonus = photo ? BONUS_PHOTO : 0
+  const photoBonus  = photo ? BONUS_PHOTO : 0
   const totalPoints = BASE_POINTS + completeBonus + photoBonus
 
-  const newTotal = Math.min(CURRENT_POINTS + totalPoints, NEXT_TIER)
-  const progress = (newTotal / NEXT_TIER) * 100
-
-  function handleSubmit() {
-    if (!allRated) return
-    setSubmitted(true)
-    setTimeout(() => router.push("/my-events"), 1800)
+  async function handleSubmit() {
+    if (!allRated || submitting) return
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      await submitReview({
+        ticketId: event!.ticketId,
+        eventId:  event!.eventId,
+        artistRating:   ratings.artista,
+        soundRating:    ratings.sonido,
+        ambienceRating: ratings.ambiente,
+        venueRating:    ratings.sala,
+        setlistRating:  ratings.repertorio,
+        comment: comment.trim() || undefined,
+        photoUrl: photo ?? undefined,
+      })
+      setSubmitted(true)
+      setTimeout(() => router.push("/my-events"), 1800)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error al enviar la valoración"
+      setSubmitError(msg)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -113,10 +165,8 @@ export default function ReviewPage() {
           </h1>
           <p className="mt-3 text-sm font-medium text-gray-500">
             <span className="font-bold text-black">{event.title}</span>
-            {" · "}
-            {event.venue}
-            {" · "}
-            {event.date}
+            {event.venue && <> · {event.venue}</>}
+            {event.date && <> · {fmtDate(event.date)}</>}
           </p>
         </section>
 
@@ -145,9 +195,7 @@ export default function ReviewPage() {
         <section className="mb-8">
           <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
             Cuéntanos más{" "}
-            <span className="text-gray-400 normal-case tracking-normal">
-              (opcional)
-            </span>
+            <span className="text-gray-400 normal-case tracking-normal">(opcional)</span>
           </label>
           <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
             <textarea
@@ -179,30 +227,18 @@ export default function ReviewPage() {
         <section className="mb-8">
           <label className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
             Añade una foto{" "}
-            <span className="text-gray-400 normal-case tracking-normal">
-              (opcional)
-            </span>
+            <span className="text-gray-400 normal-case tracking-normal">(opcional)</span>
           </label>
           <button
             type="button"
-            onClick={() =>
-              setPhoto(
-                photo
-                  ? null
-                  : "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=400&q=80",
-              )
-            }
+            onClick={() => setPhoto(photo ? null : "https://example.com/photo-placeholder")}
             className={`mt-2 flex w-full flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed p-8 transition-all ${
               photo
                 ? "border-black bg-gray-50"
                 : "border-gray-300 bg-white hover:border-black hover:bg-gray-50"
             }`}
           >
-            <div
-              className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
-                photo ? "bg-black" : "bg-gray-100"
-              }`}
-            >
+            <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${photo ? "bg-black" : "bg-gray-100"}`}>
               {photo ? (
                 <Check className="h-5 w-5 text-white" />
               ) : (
@@ -228,17 +264,13 @@ export default function ReviewPage() {
               {completeBonus > 0 && (
                 <p className="mt-1 text-xs font-medium text-white/70">
                   Feedback completo:{" "}
-                  <span className="font-bold text-white">
-                    +{completeBonus} pts extra
-                  </span>
+                  <span className="font-bold text-white">+{completeBonus} pts extra</span>
                 </p>
               )}
               {photoBonus > 0 && (
                 <p className="text-xs font-medium text-white/70">
                   Foto validada:{" "}
-                  <span className="font-bold text-white">
-                    +{photoBonus} pts extra
-                  </span>
+                  <span className="font-bold text-white">+{photoBonus} pts extra</span>
                 </p>
               )}
             </div>
@@ -246,37 +278,25 @@ export default function ReviewPage() {
               <Trophy className="h-5 w-5 text-white" />
             </div>
           </div>
-
-          <div className="mt-5 space-y-2">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
-              <span className="text-white/60">Nivel actual</span>
-              <span className="text-white">
-                {newTotal} / {NEXT_TIER} pts
-              </span>
-            </div>
-            <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="absolute inset-y-0 left-0 bg-white transition-all duration-500"
-                style={{ width: `${(CURRENT_POINTS / NEXT_TIER) * 100}%` }}
-              />
-              <div
-                className="absolute inset-y-0 left-0 bg-white/50 transition-all duration-500"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
         </section>
+
+        {/* Error */}
+        {submitError && (
+          <p className="mb-4 rounded-2xl border border-gray-200 bg-gray-50 p-3 text-center text-sm font-medium text-black">
+            {submitError}
+          </p>
+        )}
 
         {/* Submit */}
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!allRated || submitted}
+          disabled={!allRated || submitted || submitting}
           className={`flex w-full items-center justify-center gap-2 rounded-full px-6 py-4 text-sm font-bold uppercase tracking-widest transition-all ${
             submitted
               ? "bg-black text-white"
               : allRated
-                ? "bg-black text-white hover:bg-gray-800"
+                ? "bg-black text-white hover:bg-gray-800 disabled:opacity-70"
                 : "cursor-not-allowed bg-gray-200 text-gray-400"
           }`}
         >
@@ -285,6 +305,8 @@ export default function ReviewPage() {
               <Check className="h-4 w-4" />
               Valoración enviada
             </>
+          ) : submitting ? (
+            "Enviando…"
           ) : (
             <>
               Enviar valoración y ganar puntos
@@ -301,23 +323,16 @@ export default function ReviewPage() {
   )
 }
 
-// ── Interactive Stars ───────────────────────────────────────────────────────
+// ── Interactive Stars ─────────────────────────────────────────────────────────
 
-function InteractiveStars({
-  value,
-  onChange,
-}: {
-  value: number
-  onChange: (v: number) => void
+function InteractiveStars({ value, onChange }: {
+  value: number; onChange: (v: number) => void
 }) {
   const [hover, setHover] = useState(0)
   const display = hover || value
 
   return (
-    <div
-      className="flex items-center gap-1"
-      onMouseLeave={() => setHover(0)}
-    >
+    <div className="flex items-center gap-1" onMouseLeave={() => setHover(0)}>
       {[1, 2, 3, 4, 5].map((i) => (
         <button
           key={i}
@@ -329,9 +344,7 @@ function InteractiveStars({
         >
           <Star
             className={`h-5 w-5 transition-colors ${
-              i <= display
-                ? "fill-black text-black"
-                : "fill-gray-200 text-gray-200"
+              i <= display ? "fill-black text-black" : "fill-gray-200 text-gray-200"
             }`}
           />
         </button>

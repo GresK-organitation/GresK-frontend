@@ -8,7 +8,7 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import { Calendar, MapPin, ArrowRight, Clock } from "lucide-react"
 
 export interface EventLocation {
-  id: number
+  id: string
   title: string
   date: string
   venue: string

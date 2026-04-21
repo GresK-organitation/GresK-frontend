@@ -95,6 +95,17 @@ export async function getLastMinuteEvents(): Promise<EventResponse[]> {
   return res.json()
 }
 
+// ── Listar todos los eventos ─────────────────────────────────────────────────
+
+export async function getEvents(): Promise<EventResponse[]> {
+  const res = await authedFetch("/api/v1/events")
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Error desconocido" }))
+    throw new ApiException(res.status, body.error ?? "Error al cargar eventos")
+  }
+  return res.json()
+}
+
 // ── Ticket purchase ───────────────────────────────────────────────────────────
 
 export interface TicketPurchaseResponse {

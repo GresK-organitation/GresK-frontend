@@ -21,7 +21,7 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react"
-import { MOCK_EVENTS, MOCK_REVIEWS } from "@/lib/mock-data"
+import { MOCK_EVENTS } from "@/lib/mock-data"
 import { Navbar } from "@/components/dashboard/navbar"
 import { useAuth } from "@/lib/auth-context"
 import {
@@ -30,6 +30,7 @@ import {
   type TicketPurchaseResponse,
   type EventResponse,
 } from "@/lib/api/events"
+import { getEventReviews, type ReviewResponse } from "@/lib/api/reviews"
 
 // ── UUID detection ────────────────────────────────────────────────────────────
 
@@ -69,6 +70,9 @@ export default function EventDetailPage() {
   const [backendEvent, setBackendEvent] = useState<EventResponse | null>(null)
   const [loadingEvent, setLoadingEvent] = useState(isUuid)
 
+  // Reviews (loaded from API for UUID events)
+  const [apiReviews, setApiReviews] = useState<ReviewResponse[]>([])
+
   // UI state
   const [liked, setLiked] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -84,6 +88,9 @@ export default function EventDetailPage() {
       .then(setBackendEvent)
       .catch(() => setBackendEvent(null))
       .finally(() => setLoadingEvent(false))
+    getEventReviews(id)
+      .then(setApiReviews)
+      .catch(() => setApiReviews([]))
   }, [id, isUuid])
 
   // Resolve mock event for numeric IDs
@@ -137,10 +144,10 @@ export default function EventDetailPage() {
     ? `${backendEvent!.availableCapacity ?? "—"} / ${backendEvent!.totalCapacity ?? "—"}`
     : mockEvent!.capacity
 
-  // Reviews only available for mock events (mock data has eventId as number)
-  const reviews = isUuid ? [] : MOCK_REVIEWS.filter((r) => r.eventId === Number(id))
+  // Reviews: real API for UUID events, empty for mock numeric events
+  const reviews = apiReviews
   const avgRating = reviews.length > 0
-    ? reviews.reduce((a, r) => a + r.rating, 0) / reviews.length
+    ? reviews.reduce((a, r) => a + r.overallRating, 0) / reviews.length
     : 0
 
   // ── Purchase handler ──────────────────────────────────────────────────────
@@ -375,29 +382,32 @@ function DetailItem({ icon, label, value }: { icon: React.ReactNode; label: stri
   )
 }
 
-function ReviewCard({ review }: { review: (typeof MOCK_REVIEWS)[0] }) {
+function ReviewCard({ review }: { review: ReviewResponse }) {
+  const avatar = review.reviewId.substring(0, 1).toUpperCase()
+  const date   = new Date(review.createdAt).toLocaleDateString("es-ES", {
+    day: "numeric", month: "short", year: "numeric",
+  })
   return (
     <div className="rounded-3xl border border-gray-200 bg-white p-5 transition-all hover:border-black hover:shadow-lg">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black text-sm font-black text-white">
-            {review.avatar}
+            {avatar}
           </div>
           <div>
-            <p className="text-sm font-bold text-black">{review.author}</p>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">{review.date}</p>
+            <p className="text-sm font-bold text-black">Fan GresK</p>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">{date}</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
           {[1,2,3,4,5].map((i) => (
-            <Star key={i} className={`h-3.5 w-3.5 ${i <= review.rating ? "fill-black text-black" : "fill-gray-200 text-gray-200"}`} />
+            <Star key={i} className={`h-3.5 w-3.5 ${i <= review.overallRating ? "fill-black text-black" : "fill-gray-200 text-gray-200"}`} />
           ))}
         </div>
       </div>
-      <p className="mt-3 text-sm leading-relaxed text-gray-700">"{review.comment}"</p>
-      <p className="mt-3 text-[10px] font-bold uppercase tracking-widest text-gray-500">
-        {review.helpful} personas lo encontraron útil
-      </p>
+      {review.comment && (
+        <p className="mt-3 text-sm leading-relaxed text-gray-700">&ldquo;{review.comment}&rdquo;</p>
+      )}
     </div>
   )
 }
