@@ -14,26 +14,112 @@ import {
 } from "lucide-react"
 import { Navbar } from "@/components/dashboard/navbar"
 import { EventMap, type EventLocation } from "@/components/dashboard/event-map"
-import { MOCK_EVENTS, MOCK_LAST_MINUTE } from "@/lib/mock-data"
+import { getEvents, getLastMinuteEvents, type EventResponse } from "@/lib/api/events"
 
-import { API_BASE_URL } from "@/lib/api/client"
+// ── Local types ───────────────────────────────────────────────────────────────
+
+interface LastMinuteCardData {
+  id: string
+  title: string
+  date: string
+  time: string
+  venue: string
+  imageUrl: string
+  genre: string
+  spotsLeft: number
+  originalPrice: string
+  discountPrice: string
+  discountPct: number
+  viewersNow: number
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const ES_MONTHS_SHORT = [
+  "ENE", "FEB", "MAR", "ABR", "MAY", "JUN",
+  "JUL", "AGO", "SEP", "OCT", "NOV", "DIC",
+]
+
+function fmtDateLabel(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const tomorrowStart = new Date(todayStart.getTime() + 86400000)
+  const eventStart = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  if (eventStart.getTime() === todayStart.getTime()) return "HOY"
+  if (eventStart.getTime() === tomorrowStart.getTime()) return "MAÑANA"
+  return `${String(d.getDate()).padStart(2, "0")} ${ES_MONTHS_SHORT[d.getMonth()]}`
+}
+
+function fmtDateMap(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getDate()).padStart(2, "0")} ${ES_MONTHS_SHORT[d.getMonth()]}`
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso)
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`
+}
+
+function fmtPrice(amount: number, currency: string): string {
+  return `${amount}${currency === "EUR" ? "€" : currency}`
+}
+
+function toEventLocation(e: EventResponse): EventLocation {
+  return {
+    id: e.id,
+    title: e.title,
+    date: e.eventDate ? fmtDateMap(e.eventDate) : "",
+    time: e.eventDate ? fmtTime(e.eventDate) : "",
+    venue: e.place ?? e.city ?? "",
+    latitude: e.latitude ?? 0,
+    longitude: e.longitude ?? 0,
+    imageUrl: e.coverImageUrl ?? undefined,
+    genre: e.genre ?? undefined,
+  }
+}
+
+function toLastMinuteCard(e: EventResponse): LastMinuteCardData {
+  const originalPrice = e.amount ? fmtPrice(e.amount, e.currency) : ""
+  const discountPrice = e.discountedAmount
+    ? fmtPrice(e.discountedAmount, e.currency)
+    : originalPrice
+  const discountPct =
+    e.discountedAmount && e.amount > 0
+      ? Math.round((1 - e.discountedAmount / e.amount) * 100)
+      : 0
+  return {
+    id: e.id,
+    title: e.title,
+    date: e.eventDate ? fmtDateLabel(e.eventDate) : "",
+    time: e.eventDate ? fmtTime(e.eventDate) : "",
+    venue: e.place ?? e.city ?? "",
+    imageUrl: e.coverImageUrl ?? "",
+    genre: e.genre ?? "",
+    spotsLeft: e.availableCapacity,
+    originalPrice,
+    discountPrice,
+    discountPct,
+    viewersNow: 0,
+  }
+}
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const [events, setEvents] = useState<EventLocation[]>(MOCK_EVENTS)
+  const [mapEvents, setMapEvents] = useState<EventLocation[]>([])
+  const [lastMinute, setLastMinute] = useState<LastMinuteCardData[]>([])
 
   useEffect(() => {
-    async function fetchEvents() {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/v1/events`)
-        const data = await res.json()
-        if (Array.isArray(data) && data.length > 0) {
-          setEvents(data)
-        }
-      } catch {
-        // Backend no disponible, se mantienen los eventos mock
-      }
-    }
-    fetchEvents()
+    getEvents()
+      .then((data) => setMapEvents(data.map(toEventLocation)))
+      .catch(() => setMapEvents([]))
+  }, [])
+
+  useEffect(() => {
+    getLastMinuteEvents()
+      .then((data) => setLastMinute(data.map(toLastMinuteCard)))
+      .catch(() => setLastMinute([]))
   }, [])
 
   return (
@@ -98,11 +184,17 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {MOCK_LAST_MINUTE.map((event) => (
-              <LastMinuteCard key={event.id} event={event} />
-            ))}
-          </div>
+          {lastMinute.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {lastMinute.map((event) => (
+                <LastMinuteCard key={event.id} event={event} />
+              ))}
+            </div>
+          ) : (
+            <p className="py-12 text-center text-sm font-medium text-gray-400">
+              No hay flash deals disponibles ahora.
+            </p>
+          )}
         </section>
 
         {/* ── Separador ──────────────────────────────────────── */}
@@ -126,7 +218,7 @@ export default function HomePage() {
           </div>
 
           <div className="h-[70vh] min-h-[560px] overflow-hidden rounded-3xl border border-gray-200">
-            <EventMap events={events} />
+            <EventMap events={mapEvents} />
           </div>
         </section>
       </main>
@@ -134,13 +226,9 @@ export default function HomePage() {
   )
 }
 
-// ── Last Minute Card ────────────────────────────────────────────────────────
+// ── Last Minute Card ──────────────────────────────────────────────────────────
 
-function LastMinuteCard({
-  event,
-}: {
-  event: (typeof MOCK_LAST_MINUTE)[0]
-}) {
+function LastMinuteCard({ event }: { event: LastMinuteCardData }) {
   const isCritical = event.spotsLeft <= 15
   return (
     <Link
@@ -148,12 +236,16 @@ function LastMinuteCard({
       className="group overflow-hidden rounded-3xl border border-gray-200 bg-white transition-all hover:border-black hover:shadow-lg"
     >
       <div className="relative h-40 w-full">
-        <Image
-          src={event.imageUrl}
-          alt={event.title}
-          fill
-          className="object-cover grayscale transition-transform duration-500 group-hover:scale-105"
-        />
+        {event.imageUrl ? (
+          <Image
+            src={event.imageUrl}
+            alt={event.title}
+            fill
+            className="object-cover grayscale transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="h-full w-full bg-gray-100" />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
 
         {/* Date */}
@@ -162,11 +254,13 @@ function LastMinuteCard({
         </span>
 
         {/* Discount badge */}
-        <span className="absolute right-3 top-3 flex h-12 w-12 flex-col items-center justify-center rounded-full border-2 border-black bg-white">
-          <span className="text-sm font-black leading-none text-black">
-            -{event.discountPct}%
+        {event.discountPct > 0 && (
+          <span className="absolute right-3 top-3 flex h-12 w-12 flex-col items-center justify-center rounded-full border-2 border-black bg-white">
+            <span className="text-sm font-black leading-none text-black">
+              -{event.discountPct}%
+            </span>
           </span>
-        </span>
+        )}
 
         {/* Spots + viewers en overlay */}
         <div className="absolute bottom-3 left-3 flex items-center gap-1.5">
@@ -175,10 +269,12 @@ function LastMinuteCard({
               ¡Solo {event.spotsLeft}!
             </span>
           )}
-          <span className="flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-black backdrop-blur">
-            <Eye className="h-2.5 w-2.5" />
-            {event.viewersNow}
-          </span>
+          {event.viewersNow > 0 && (
+            <span className="flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-black backdrop-blur">
+              <Eye className="h-2.5 w-2.5" />
+              {event.viewersNow}
+            </span>
+          )}
         </div>
       </div>
 
@@ -193,16 +289,22 @@ function LastMinuteCard({
           <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
             <MapPin className="h-3 w-3 shrink-0" />
             <span className="truncate">{event.venue}</span>
-            <Clock className="ml-1 h-3 w-3 shrink-0" />
-            <span>{event.time}</span>
+            {event.time && (
+              <>
+                <Clock className="ml-1 h-3 w-3 shrink-0" />
+                <span>{event.time}</span>
+              </>
+            )}
           </div>
         </div>
 
         <div className="flex items-center justify-between border-t border-gray-100 pt-3">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-xs font-semibold text-gray-400 line-through">
-              {event.originalPrice}
-            </span>
+            {event.discountPct > 0 && (
+              <span className="text-xs font-semibold text-gray-400 line-through">
+                {event.originalPrice}
+              </span>
+            )}
             <span className="text-xl font-black text-black">
               {event.discountPrice}
             </span>

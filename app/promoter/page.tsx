@@ -559,9 +559,9 @@ function PromoterEventCard({ event }: { event: PromoterEvent }) {
               value={`${event.conversionRate != null ? event.conversionRate.toFixed(0) : Math.round(fillPct)}%`}
             />
             <InlineStat
-              icon={Ticket}
-              label="Capacidad"
-              value={event.totalCapacity.toLocaleString("es-ES")}
+              icon={Star}
+              label="Valoración"
+              value={event.avgRating > 0 ? `${event.avgRating.toFixed(1)} / 5` : "Sin valorar"}
             />
           </div>
 

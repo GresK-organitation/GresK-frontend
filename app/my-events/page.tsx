@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -27,24 +27,83 @@ import {
   Plus,
 } from "lucide-react"
 import { Navbar } from "@/components/dashboard/navbar"
-import { MOCK_ATTENDED, type AttendedEvent } from "@/lib/mock-data"
+import {
+  getUserAttendedEvents,
+  updateReview,
+  type AttendedEventResponse,
+} from "@/lib/api/reviews"
+
+// ── Tipo local ────────────────────────────────────────────────────────────────
+
+interface AttendedEvent {
+  id: string               // ticketId
+  eventId: string
+  title: string
+  date: string             // "2026-04-05" ISO local date
+  venue: string
+  imageUrl: string
+  genre: string
+  userRating: number
+  attendedAt: string       // same as date, ISO local date
+  ratings: {
+    artista: number
+    sonido: number
+    ambiente: number
+    sala: number
+    repertorio: number
+  }
+  comment?: string
+  photoUrl?: string
+  pointsEarned: number
+  communityAvg: number
+  pending?: boolean
+  reviewId?: string
+}
+
+function mapResponse(r: AttendedEventResponse): AttendedEvent {
+  return {
+    id: r.ticketId,
+    eventId: r.eventId,
+    title: r.title,
+    date: r.date ?? "",
+    venue: r.venue ?? "",
+    imageUrl: r.coverImageUrl ?? "",
+    genre: r.genre ?? "",
+    userRating: r.overallRating,
+    attendedAt: r.date ?? "",
+    ratings: {
+      artista: r.artistRating,
+      sonido: r.soundRating,
+      ambiente: r.ambienceRating,
+      sala: r.venueRating,
+      repertorio: r.setlistRating,
+    },
+    comment: r.comment ?? undefined,
+    photoUrl: r.photoUrl ?? undefined,
+    pointsEarned: r.pointsAwarded,
+    communityAvg: r.communityAvgRating,
+    pending: r.pending,
+    reviewId: r.reviewId ?? undefined,
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+const ES_MONTHS_SHORT = [
+  "ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC",
+]
+const MONTHS_ES = [
+  "Enero","Febrero","Marzo","Abril","Mayo","Junio",
+  "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre",
+]
+
+function fmtDateDisplay(iso: string): string {
+  if (!iso) return "—"
+  const d = new Date(iso + "T00:00:00")
+  return `${String(d.getDate()).padStart(2,"0")} ${ES_MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`
+}
 
 type SortKey = "recent" | "rating" | "points"
-
-const MONTHS_ES = [
-  "Enero",
-  "Febrero",
-  "Marzo",
-  "Abril",
-  "Mayo",
-  "Junio",
-  "Julio",
-  "Agosto",
-  "Septiembre",
-  "Octubre",
-  "Noviembre",
-  "Diciembre",
-]
 
 const CATEGORY_META = [
   { key: "artista" as const, label: "Artista", icon: Mic2 },
@@ -54,7 +113,11 @@ const CATEGORY_META = [
   { key: "repertorio" as const, label: "Repertorio", icon: ListMusic },
 ]
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function MyEventsPage() {
+  const [allEvents, setAllEvents] = useState<AttendedEvent[]>([])
+  const [loading, setLoading] = useState(true)
   const [sort, setSort] = useState<SortKey>("recent")
   const [genreFilter, setGenreFilter] = useState<string>("all")
   const [yearFilter, setYearFilter] = useState<string>("all")
@@ -62,17 +125,23 @@ export default function MyEventsPage() {
   const [editing, setEditing] = useState<AttendedEvent | null>(null)
   const [shareEvent, setShareEvent] = useState<AttendedEvent | null>(null)
 
-  // ── Derivados ───────────────────────────────────────────────────────────
-  const reviewed = MOCK_ATTENDED.filter((e) => !e.pending)
-  const pending = MOCK_ATTENDED.filter((e) => e.pending)
+  useEffect(() => {
+    getUserAttendedEvents()
+      .then((data) => setAllEvents(data.map(mapResponse)))
+      .catch(() => setAllEvents([]))
+      .finally(() => setLoading(false))
+  }, [])
 
-  const totalEvents = MOCK_ATTENDED.length
+  // ── Derivados ───────────────────────────────────────────────────────────
+  const reviewed = allEvents.filter((e) => !e.pending)
+  const pending  = allEvents.filter((e) => e.pending)
+
+  const totalEvents = allEvents.length
   const avgRating = reviewed.length
     ? reviewed.reduce((acc, e) => acc + e.userRating, 0) / reviewed.length
     : 0
-  const totalPoints = MOCK_ATTENDED.reduce((a, e) => a + e.pointsEarned, 0)
+  const totalPoints = allEvents.reduce((a, e) => a + e.pointsEarned, 0)
 
-  // Insights: categoría más exigente, venue favorito, género top
   const insights = useMemo(() => {
     if (!reviewed.length) return null
     const catTotals: Record<string, { sum: number; count: number }> = {}
@@ -104,8 +173,7 @@ export default function MyEventsPage() {
 
     return {
       mostDemanding: {
-        label:
-          CATEGORY_META.find((c) => c.key === mostDemanding.key)?.label ?? "",
+        label: CATEGORY_META.find((c) => c.key === mostDemanding.key)?.label ?? "",
         avg: mostDemanding.avg,
       },
       favVenue: { name: favVenue[0], visits: favVenue[1] },
@@ -113,27 +181,22 @@ export default function MyEventsPage() {
     }
   }, [reviewed])
 
-  // Filtros
   const availableGenres = useMemo(() => {
     const set = new Set<string>()
-    MOCK_ATTENDED.forEach((e) => set.add(e.genre.split("/")[0].trim()))
+    allEvents.forEach((e) => set.add(e.genre.split("/")[0].trim()))
     return Array.from(set)
-  }, [])
+  }, [allEvents])
 
   const availableYears = useMemo(() => {
     const set = new Set<string>()
-    MOCK_ATTENDED.forEach((e) => set.add(e.attendedAt.slice(0, 4)))
+    allEvents.forEach((e) => e.attendedAt && set.add(e.attendedAt.slice(0, 4)))
     return Array.from(set).sort((a, b) => +b - +a)
-  }, [])
+  }, [allEvents])
 
   const filtered = reviewed.filter((e) => {
-    if (
-      genreFilter !== "all" &&
-      !e.genre.toLowerCase().startsWith(genreFilter.toLowerCase())
-    )
+    if (genreFilter !== "all" && !e.genre.toLowerCase().startsWith(genreFilter.toLowerCase()))
       return false
-    if (yearFilter !== "all" && !e.attendedAt.startsWith(yearFilter))
-      return false
+    if (yearFilter !== "all" && !e.attendedAt.startsWith(yearFilter)) return false
     return true
   })
 
@@ -143,11 +206,10 @@ export default function MyEventsPage() {
     return +new Date(b.attendedAt) - +new Date(a.attendedAt)
   })
 
-  // Agrupar por mes/año (timeline)
   const grouped = useMemo(() => {
     const map = new Map<string, AttendedEvent[]>()
     sorted.forEach((e) => {
-      const d = new Date(e.attendedAt)
+      const d = new Date(e.attendedAt + "T00:00:00")
       const key = `${MONTHS_ES[d.getMonth()]} ${d.getFullYear()}`
       if (!map.has(key)) map.set(key, [])
       map.get(key)!.push(e)
@@ -155,12 +217,31 @@ export default function MyEventsPage() {
     return Array.from(map.entries())
   }, [sorted])
 
-  // Venues únicos
   const uniqueVenues = useMemo(() => {
     const map = new Map<string, number>()
     reviewed.forEach((e) => map.set(e.venue, (map.get(e.venue) || 0) + 1))
     return Array.from(map.entries()).sort((a, b) => b[1] - a[1])
   }, [reviewed])
+
+  function handleEditSaved(updated: AttendedEvent) {
+    setAllEvents((prev) =>
+      prev.map((e) => (e.id === updated.id ? updated : e))
+    )
+    setEditing(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Navbar />
+        <main className="mx-auto max-w-4xl px-4 pt-32 text-center md:px-8">
+          <p className="text-sm font-bold uppercase tracking-widest text-gray-400">
+            Cargando historial…
+          </p>
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -198,16 +279,8 @@ export default function MyEventsPage() {
             suffix="/ 5"
             showStar
           />
-          <StatCard
-            label="Puntos ganados"
-            value={totalPoints.toString()}
-            suffix="pts"
-          />
-          <StatCard
-            label="Género top"
-            value={insights?.favGenre ?? "—"}
-            suffix=""
-          />
+          <StatCard label="Puntos ganados" value={totalPoints.toString()} suffix="pts" />
+          <StatCard label="Género top" value={insights?.favGenre ?? "—"} suffix="" />
         </section>
 
         {/* Insights personales */}
@@ -227,9 +300,9 @@ export default function MyEventsPage() {
             />
             <InsightCard
               icon={Award}
-              label="Top reviewer en"
-              value={`${reviewed.filter((e) => (e.helpfulCount ?? 0) >= 20).length} reviews`}
-              hint="Con +20 votos útiles"
+              label="Reviews completadas"
+              value={`${reviewed.length} reviews`}
+              hint="Con comentario y fotos"
             />
           </section>
         )}
@@ -239,16 +312,14 @@ export default function MyEventsPage() {
           <section className="mb-10">
             <div className="mb-4 flex items-center gap-2">
               <Zap className="h-4 w-4 text-black" />
-              <h2 className="text-xl font-black text-black">
-                Pendientes de valorar
-              </h2>
+              <h2 className="text-xl font-black text-black">Pendientes de valorar</h2>
               <span className="rounded-full bg-black px-2 py-0.5 text-[10px] font-bold text-white">
                 {pending.length}
               </span>
             </div>
             <div className="space-y-3">
               {pending.map((e) => (
-                <PendingCard key={e.id} event={e} />
+                <PendingCard key={e.id} event={e} fmtDate={fmtDateDisplay} />
               ))}
             </div>
           </section>
@@ -256,9 +327,7 @@ export default function MyEventsPage() {
 
         {/* Filtros + orden */}
         <section className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-black text-black">
-            Historial de asistencia
-          </h2>
+          <h2 className="text-xl font-black text-black">Historial de asistencia</h2>
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setFiltersOpen((v) => !v)}
@@ -271,22 +340,13 @@ export default function MyEventsPage() {
               <Filter className="h-3 w-3" />
               Filtros
             </button>
-            <SortButton
-              active={sort === "recent"}
-              onClick={() => setSort("recent")}
-            >
+            <SortButton active={sort === "recent"} onClick={() => setSort("recent")}>
               Recientes
             </SortButton>
-            <SortButton
-              active={sort === "rating"}
-              onClick={() => setSort("rating")}
-            >
+            <SortButton active={sort === "rating"} onClick={() => setSort("rating")}>
               Mejor nota
             </SortButton>
-            <SortButton
-              active={sort === "points"}
-              onClick={() => setSort("points")}
-            >
+            <SortButton active={sort === "points"} onClick={() => setSort("points")}>
               Más puntos
             </SortButton>
           </div>
@@ -301,18 +361,11 @@ export default function MyEventsPage() {
                   Género
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Chip
-                    active={genreFilter === "all"}
-                    onClick={() => setGenreFilter("all")}
-                  >
+                  <Chip active={genreFilter === "all"} onClick={() => setGenreFilter("all")}>
                     Todos
                   </Chip>
                   {availableGenres.map((g) => (
-                    <Chip
-                      key={g}
-                      active={genreFilter === g}
-                      onClick={() => setGenreFilter(g)}
-                    >
+                    <Chip key={g} active={genreFilter === g} onClick={() => setGenreFilter(g)}>
                       {g}
                     </Chip>
                   ))}
@@ -323,18 +376,11 @@ export default function MyEventsPage() {
                   Año
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  <Chip
-                    active={yearFilter === "all"}
-                    onClick={() => setYearFilter("all")}
-                  >
+                  <Chip active={yearFilter === "all"} onClick={() => setYearFilter("all")}>
                     Todos
                   </Chip>
                   {availableYears.map((y) => (
-                    <Chip
-                      key={y}
-                      active={yearFilter === y}
-                      onClick={() => setYearFilter(y)}
-                    >
+                    <Chip key={y} active={yearFilter === y} onClick={() => setYearFilter(y)}>
                       {y}
                     </Chip>
                   ))}
@@ -346,13 +392,25 @@ export default function MyEventsPage() {
 
         {/* Timeline agrupada */}
         <section>
-          {grouped.length === 0 ? (
-            <EmptyState
-              onReset={() => {
-                setGenreFilter("all")
-                setYearFilter("all")
-              }}
-            />
+          {allEvents.length === 0 ? (
+            <div className="rounded-3xl border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white">
+                <Calendar className="h-5 w-5 text-black" />
+              </div>
+              <p className="mt-4 text-lg font-black text-black">Sin eventos</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Compra una entrada para empezar tu historial.
+              </p>
+              <Link
+                href="/feed"
+                className="mt-5 inline-flex items-center gap-1 rounded-full bg-black px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-gray-800"
+              >
+                <Plus className="h-3 w-3" />
+                Descubrir eventos
+              </Link>
+            </div>
+          ) : grouped.length === 0 ? (
+            <EmptyState onReset={() => { setGenreFilter("all"); setYearFilter("all") }} />
           ) : (
             <div className="space-y-10">
               {grouped.map(([month, events]) => (
@@ -369,6 +427,7 @@ export default function MyEventsPage() {
                       <AttendedCard
                         key={event.id}
                         event={event}
+                        fmtDate={fmtDateDisplay}
                         onEdit={() => setEditing(event)}
                         onShare={() => setShareEvent(event)}
                       />
@@ -387,17 +446,13 @@ export default function MyEventsPage() {
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
                 Tu mapa
               </p>
-              <h2 className="mt-1 text-2xl font-black text-black">
-                Salas visitadas
-              </h2>
+              <h2 className="mt-1 text-2xl font-black text-black">Salas visitadas</h2>
             </div>
             <div className="relative overflow-hidden rounded-3xl border border-gray-200 bg-gray-50 p-6">
-              {/* Grid dots background */}
               <div
                 className="absolute inset-0 opacity-40"
                 style={{
-                  backgroundImage:
-                    "radial-gradient(circle, #D4D4D8 1px, transparent 1px)",
+                  backgroundImage: "radial-gradient(circle, #D4D4D8 1px, transparent 1px)",
                   backgroundSize: "16px 16px",
                 }}
               />
@@ -411,9 +466,7 @@ export default function MyEventsPage() {
                       <MapPin className="h-4 w-4 text-white" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-bold text-black">
-                        {venue}
-                      </p>
+                      <p className="truncate text-sm font-bold text-black">{venue}</p>
                       <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-500">
                         {visits} visita{visits > 1 ? "s" : ""}
                       </p>
@@ -426,18 +479,15 @@ export default function MyEventsPage() {
         )}
       </main>
 
-      {/* Modales */}
       {editing && (
         <EditReviewModal
           event={editing}
           onClose={() => setEditing(null)}
+          onSaved={handleEditSaved}
         />
       )}
       {shareEvent && (
-        <ShareReviewModal
-          event={shareEvent}
-          onClose={() => setShareEvent(null)}
-        />
+        <ShareReviewModal event={shareEvent} onClose={() => setShareEvent(null)} />
       )}
     </div>
   )
@@ -446,52 +496,34 @@ export default function MyEventsPage() {
 // ── Stat Card ────────────────────────────────────────────────────────────────
 
 function StatCard({
-  label,
-  value,
-  suffix,
-  showStar = false,
+  label, value, suffix, showStar = false,
 }: {
-  label: string
-  value: string
-  suffix: string
-  showStar?: boolean
+  label: string; value: string; suffix: string; showStar?: boolean
 }) {
   return (
     <div className="rounded-3xl border border-gray-200 bg-white p-5 transition-all hover:shadow-lg">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-        {label}
-      </p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
       <div className="mt-2 flex items-baseline gap-1.5">
         <span className="truncate text-3xl font-black text-black">{value}</span>
         {showStar && <Star className="h-4 w-4 fill-black text-black" />}
-        {suffix && (
-          <span className="text-sm font-semibold text-gray-500">{suffix}</span>
-        )}
+        {suffix && <span className="text-sm font-semibold text-gray-500">{suffix}</span>}
       </div>
     </div>
   )
 }
 
-// ── Insight Card ────────────────────────────────────────────────────────────
+// ── Insight Card ─────────────────────────────────────────────────────────────
 
 function InsightCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
+  icon: Icon, label, value, hint,
 }: {
-  icon: React.ElementType
-  label: string
-  value: string
-  hint: string
+  icon: React.ElementType; label: string; value: string; hint: string
 }) {
   return (
     <div className="rounded-3xl border border-gray-200 bg-white p-5 transition-all hover:border-black hover:shadow-lg">
       <div className="flex items-center gap-2">
         <Icon className="h-3.5 w-3.5 text-black" />
-        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-          {label}
-        </p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{label}</p>
       </div>
       <p className="mt-2 truncate text-lg font-black text-black">{value}</p>
       <p className="text-xs font-medium text-gray-500">{hint}</p>
@@ -499,16 +531,10 @@ function InsightCard({
   )
 }
 
-// ── Chip ────────────────────────────────────────────────────────────────────
+// ── Chip ─────────────────────────────────────────────────────────────────────
 
-function Chip({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
+function Chip({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode
 }) {
   return (
     <button
@@ -524,16 +550,10 @@ function Chip({
   )
 }
 
-// ── Sort Button ─────────────────────────────────────────────────────────────
+// ── Sort Button ──────────────────────────────────────────────────────────────
 
-function SortButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean
-  onClick: () => void
-  children: React.ReactNode
+function SortButton({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode
 }) {
   return (
     <button
@@ -549,27 +569,28 @@ function SortButton({
   )
 }
 
-// ── Pending Card ────────────────────────────────────────────────────────────
+// ── Pending Card ─────────────────────────────────────────────────────────────
 
-function PendingCard({ event }: { event: AttendedEvent }) {
+function PendingCard({
+  event, fmtDate,
+}: {
+  event: AttendedEvent; fmtDate: (d: string) => string
+}) {
   return (
     <div className="flex items-center gap-4 rounded-3xl border-2 border-dashed border-black bg-white p-4 transition-all hover:shadow-lg">
       <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl">
-        <Image
-          src={event.imageUrl}
-          alt={event.title}
-          fill
-          className="object-cover grayscale"
-        />
+        {event.imageUrl ? (
+          <Image src={event.imageUrl} alt={event.title} fill className="object-cover grayscale" />
+        ) : (
+          <div className="h-full w-full bg-gray-100" />
+        )}
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-          {event.date}
+          {fmtDate(event.date)}
         </p>
         <p className="truncate text-sm font-black text-black">{event.title}</p>
-        <p className="truncate text-xs font-medium text-gray-500">
-          {event.venue}
-        </p>
+        <p className="truncate text-xs font-medium text-gray-500">{event.venue}</p>
       </div>
       <Link
         href={`/my-events/${event.id}/review`}
@@ -584,7 +605,7 @@ function PendingCard({ event }: { event: AttendedEvent }) {
   )
 }
 
-// ── Empty State ─────────────────────────────────────────────────────────────
+// ── Empty State ──────────────────────────────────────────────────────────────
 
 function EmptyState({ onReset }: { onReset: () => void }) {
   return (
@@ -615,33 +636,29 @@ function EmptyState({ onReset }: { onReset: () => void }) {
   )
 }
 
-// ── Attended Event Card ─────────────────────────────────────────────────────
+// ── Attended Event Card ──────────────────────────────────────────────────────
 
 function AttendedCard({
-  event,
-  onEdit,
-  onShare,
+  event, fmtDate, onEdit, onShare,
 }: {
   event: AttendedEvent
+  fmtDate: (d: string) => string
   onEdit: () => void
   onShare: () => void
 }) {
   const [open, setOpen] = useState(false)
   const diff = event.userRating - event.communityAvg
-  const diffLabel =
-    diff > 0.2 ? "Por encima" : diff < -0.2 ? "Por debajo" : "En línea"
-  const isTopReviewer = (event.helpfulCount ?? 0) >= 20
+  const diffLabel = diff > 0.2 ? "Por encima" : diff < -0.2 ? "Por debajo" : "En línea"
 
   return (
     <article className="group overflow-hidden rounded-3xl border border-gray-200 bg-white transition-all hover:shadow-lg hover:border-black">
       <div className="flex flex-col sm:flex-row">
         <div className="relative h-40 w-full shrink-0 sm:h-auto sm:w-48">
-          <Image
-            src={event.imageUrl}
-            alt={event.title}
-            fill
-            className="object-cover grayscale"
-          />
+          {event.imageUrl ? (
+            <Image src={event.imageUrl} alt={event.title} fill className="object-cover grayscale" />
+          ) : (
+            <div className="h-full w-full bg-gray-100" />
+          )}
           <span className="absolute left-3 top-3 rounded-full bg-white px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-black">
             Asistido
           </span>
@@ -650,12 +667,6 @@ function AttendedCard({
               <span className="flex items-center gap-1 rounded-full bg-black px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
                 <Camera className="h-3 w-3" />
                 Foto
-              </span>
-            )}
-            {isTopReviewer && (
-              <span className="flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-black">
-                <Award className="h-3 w-3" />
-                Top
               </span>
             )}
           </div>
@@ -677,9 +688,7 @@ function AttendedCard({
               </p>
               <div className="mt-0.5 flex items-center justify-end gap-1">
                 <Star className="h-4 w-4 fill-black text-black" />
-                <span className="text-lg font-black text-black">
-                  {event.userRating}
-                </span>
+                <span className="text-lg font-black text-black">{event.userRating}</span>
               </div>
             </div>
           </div>
@@ -687,7 +696,7 @@ function AttendedCard({
           <div className="space-y-1.5 text-sm text-gray-700">
             <p className="flex items-center gap-2">
               <Calendar className="h-3.5 w-3.5 shrink-0 text-black" />
-              <span className="font-medium">{event.date}</span>
+              <span className="font-medium">{fmtDate(event.date)}</span>
             </p>
             <p className="flex items-center gap-2">
               <MapPin className="h-3.5 w-3.5 shrink-0 text-black" />
@@ -695,11 +704,7 @@ function AttendedCard({
             </p>
           </div>
 
-          {/* Comparador visual tú vs comunidad */}
-          <ComparatorBar
-            userValue={event.userRating}
-            communityValue={event.communityAvg}
-          />
+          <ComparatorBar userValue={event.userRating} communityValue={event.communityAvg} />
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="flex items-center gap-1 rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-black">
@@ -709,11 +714,6 @@ function AttendedCard({
             <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-600">
               {diffLabel}
             </span>
-            {event.helpfulCount !== undefined && (
-              <span className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-gray-600">
-                {event.helpfulCount} útiles
-              </span>
-            )}
           </div>
 
           <div className="mt-auto flex items-center justify-between gap-2 border-t border-gray-100 pt-3">
@@ -724,9 +724,7 @@ function AttendedCard({
             >
               {open ? "Ocultar" : "Ver mi valoración"}
               <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform duration-300 ${
-                  open ? "rotate-180" : ""
-                }`}
+                className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
               />
             </button>
             <Link
@@ -739,7 +737,6 @@ function AttendedCard({
         </div>
       </div>
 
-      {/* Panel expandible con animación */}
       <div
         className={`grid transition-[grid-template-rows] duration-300 ease-out ${
           open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
@@ -753,14 +750,10 @@ function AttendedCard({
   )
 }
 
-// ── Comparator Bar ──────────────────────────────────────────────────────────
+// ── Comparator Bar ───────────────────────────────────────────────────────────
 
-function ComparatorBar({
-  userValue,
-  communityValue,
-}: {
-  userValue: number
-  communityValue: number
+function ComparatorBar({ userValue, communityValue }: {
+  userValue: number; communityValue: number
 }) {
   const userPct = (userValue / 5) * 100
   const commPct = (communityValue / 5) * 100
@@ -768,9 +761,7 @@ function ComparatorBar({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
         <span className="text-black">Tú {userValue.toFixed(1)}</span>
-        <span className="text-gray-500">
-          Comunidad {communityValue.toFixed(1)}
-        </span>
+        <span className="text-gray-500">Comunidad {communityValue.toFixed(1)}</span>
       </div>
       <div className="relative h-2 w-full rounded-full bg-gray-100">
         <div
@@ -780,23 +771,16 @@ function ComparatorBar({
         <div
           className="absolute top-1/2 h-3 w-0.5 -translate-y-1/2 bg-gray-500"
           style={{ left: `${commPct}%` }}
-          aria-label="Media comunidad"
         />
       </div>
     </div>
   )
 }
 
-// ── Review Details ──────────────────────────────────────────────────────────
+// ── Review Details ───────────────────────────────────────────────────────────
 
-function ReviewDetails({
-  event,
-  onEdit,
-  onShare,
-}: {
-  event: AttendedEvent
-  onEdit: () => void
-  onShare: () => void
+function ReviewDetails({ event, onEdit, onShare }: {
+  event: AttendedEvent; onEdit: () => void; onShare: () => void
 }) {
   return (
     <div className="border-t border-gray-200 bg-gray-50 p-5">
@@ -843,7 +827,7 @@ function ReviewDetails({
             Tu comentario
           </p>
           <p className="mt-1.5 text-sm leading-relaxed text-gray-800">
-            “{event.comment}”
+            &ldquo;{event.comment}&rdquo;
           </p>
         </div>
       )}
@@ -867,7 +851,7 @@ function ReviewDetails({
   )
 }
 
-// ── Star Row ────────────────────────────────────────────────────────────────
+// ── Star Row ─────────────────────────────────────────────────────────────────
 
 function StarRow({ value }: { value: number }) {
   return (
@@ -884,17 +868,46 @@ function StarRow({ value }: { value: number }) {
   )
 }
 
-// ── Edit Review Modal ───────────────────────────────────────────────────────
+// ── Edit Review Modal ────────────────────────────────────────────────────────
 
 function EditReviewModal({
-  event,
-  onClose,
+  event, onClose, onSaved,
 }: {
   event: AttendedEvent
   onClose: () => void
+  onSaved: (updated: AttendedEvent) => void
 }) {
   const [comment, setComment] = useState(event.comment ?? "")
   const [ratings, setRatings] = useState(event.ratings)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!event.reviewId) return
+    setSaving(true)
+    try {
+      await updateReview(event.reviewId, {
+        artistRating: ratings.artista,
+        soundRating: ratings.sonido,
+        ambienceRating: ratings.ambiente,
+        venueRating: ratings.sala,
+        setlistRating: ratings.repertorio,
+        comment: comment || undefined,
+      })
+      onSaved({
+        ...event,
+        ratings,
+        comment: comment || undefined,
+        userRating: Math.round(
+          (ratings.artista + ratings.sonido + ratings.ambiente +
+           ratings.sala + ratings.repertorio) / 5
+        ),
+      })
+    } catch {
+      // keep modal open on error
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div
@@ -915,9 +928,7 @@ function EditReviewModal({
           Editar valoración
         </p>
         <h3 className="mt-1 text-2xl font-black text-black">{event.title}</h3>
-        <p className="mt-1 text-sm text-gray-500">
-          {event.venue} · {event.date}
-        </p>
+        <p className="mt-1 text-sm text-gray-500">{event.venue}</p>
 
         <div className="mt-6 space-y-2.5">
           {CATEGORY_META.map(({ key, label, icon: Icon }) => (
@@ -927,9 +938,7 @@ function EditReviewModal({
             >
               <div className="flex items-center gap-2">
                 <Icon className="h-3.5 w-3.5 text-black" />
-                <span className="text-xs font-semibold text-black">
-                  {label}
-                </span>
+                <span className="text-xs font-semibold text-black">{label}</span>
               </div>
               <InteractiveStarRow
                 value={ratings[key]}
@@ -963,10 +972,11 @@ function EditReviewModal({
             Cancelar
           </button>
           <button
-            onClick={onClose}
-            className="rounded-full bg-black px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-gray-800"
+            onClick={handleSave}
+            disabled={saving}
+            className="rounded-full bg-black px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            Guardar cambios
+            {saving ? "Guardando…" : "Guardar cambios"}
           </button>
         </div>
       </div>
@@ -974,12 +984,8 @@ function EditReviewModal({
   )
 }
 
-function InteractiveStarRow({
-  value,
-  onChange,
-}: {
-  value: number
-  onChange: (v: number) => void
+function InteractiveStarRow({ value, onChange }: {
+  value: number; onChange: (v: number) => void
 }) {
   return (
     <div className="flex items-center gap-0.5">
@@ -996,14 +1002,10 @@ function InteractiveStarRow({
   )
 }
 
-// ── Share Review Modal ──────────────────────────────────────────────────────
+// ── Share Review Modal ───────────────────────────────────────────────────────
 
-function ShareReviewModal({
-  event,
-  onClose,
-}: {
-  event: AttendedEvent
-  onClose: () => void
+function ShareReviewModal({ event, onClose }: {
+  event: AttendedEvent; onClose: () => void
 }) {
   return (
     <div
@@ -1020,26 +1022,22 @@ function ShareReviewModal({
         >
           <X className="h-4 w-4 text-white" />
         </button>
-
-        {/* Shareable card */}
         <div className="relative aspect-[4/5] overflow-hidden bg-black">
-          <Image
-            src={event.imageUrl}
-            alt={event.title}
-            fill
-            className="object-cover opacity-40 grayscale"
-          />
+          {event.imageUrl && (
+            <Image
+              src={event.imageUrl}
+              alt={event.title}
+              fill
+              className="object-cover opacity-40 grayscale"
+            />
+          )}
           <div className="relative flex h-full flex-col justify-between p-6 text-white">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-white/70">
                 GresK · Review
               </p>
-              <h3 className="mt-2 text-3xl font-black leading-tight">
-                {event.title}
-              </h3>
-              <p className="mt-1 text-sm font-medium text-white/80">
-                {event.venue} · {event.date}
-              </p>
+              <h3 className="mt-2 text-3xl font-black leading-tight">{event.title}</h3>
+              <p className="mt-1 text-sm font-medium text-white/80">{event.venue}</p>
             </div>
             <div>
               <div className="flex items-center gap-1">
@@ -1047,20 +1045,16 @@ function ShareReviewModal({
                   <Star
                     key={i}
                     className={`h-6 w-6 ${
-                      i <= event.userRating
-                        ? "fill-white text-white"
-                        : "text-white/30"
+                      i <= event.userRating ? "fill-white text-white" : "text-white/30"
                     }`}
                   />
                 ))}
-                <span className="ml-2 text-3xl font-black">
-                  {event.userRating}
-                </span>
+                <span className="ml-2 text-3xl font-black">{event.userRating}</span>
                 <span className="text-lg font-bold text-white/60">/5</span>
               </div>
               {event.comment && (
                 <p className="mt-3 line-clamp-3 text-sm leading-relaxed text-white/90">
-                  “{event.comment}”
+                  &ldquo;{event.comment}&rdquo;
                 </p>
               )}
               <p className="mt-4 text-[10px] font-bold uppercase tracking-widest text-white/60">
@@ -1069,7 +1063,6 @@ function ShareReviewModal({
             </div>
           </div>
         </div>
-
         <div className="flex items-center justify-between gap-2 p-4">
           <button
             onClick={onClose}
