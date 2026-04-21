@@ -188,26 +188,30 @@ export default function FeedPage() {
         </section>
 
         {/* ── Accesos rápidos ── */}
-        <div className="mb-12 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mb-12 grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Link
             href="/my-events"
-            className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md"
+            className="group flex items-center justify-between rounded-3xl border border-gray-200 bg-white px-7 py-7 transition-all hover:border-black hover:shadow-lg"
           >
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Historial</p>
-              <p className="mt-0.5 text-sm font-black text-black">Mis eventos</p>
+              <p className="mt-1 text-2xl font-black text-black">Mis eventos</p>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-1 group-hover:text-black" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 transition-all group-hover:border-black group-hover:bg-black">
+              <ArrowRight className="h-4 w-4 text-gray-400 transition-colors group-hover:text-white" />
+            </div>
           </Link>
           <Link
             href="/my-tickets"
-            className="group flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-5 py-4 transition-all hover:border-black hover:shadow-md"
+            className="group flex items-center justify-between rounded-3xl border border-gray-200 bg-white px-7 py-7 transition-all hover:border-black hover:shadow-lg"
           >
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Entradas</p>
-              <p className="mt-0.5 text-sm font-black text-black">Mis tickets</p>
+              <p className="mt-1 text-2xl font-black text-black">Mis tickets</p>
             </div>
-            <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-1 group-hover:text-black" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 transition-all group-hover:border-black group-hover:bg-black">
+              <ArrowRight className="h-4 w-4 text-gray-400 transition-colors group-hover:text-white" />
+            </div>
           </Link>
         </div>
 
