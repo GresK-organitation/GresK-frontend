@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
@@ -27,6 +27,8 @@ import {
   Navigation,
 } from "lucide-react"
 import { createEvent, publishEvent } from "@/lib/api/events"
+import { getMyArtists } from "@/lib/api/artist"
+import type { PromoterArtist } from "@/lib/mock-data"
 
 // ── Géneros (label → valor enum backend) ────────────────────────────────────
 
@@ -59,7 +61,7 @@ type Step = 1 | 2 | 3 | 4 | 5
 
 interface EventDraft {
   title: string
-  artists: string[]
+  selectedArtist: { id: string; name: string } | null
   genres: string[]       // valores enum: "ROCK", "INDIE", …
   place: string          // nombre de la sala
   street: string
@@ -84,7 +86,7 @@ export default function NewEventPage() {
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState<EventDraft>({
     title: "",
-    artists: [],
+    selectedArtist: null,
     genres: [],
     place: "",
     street: "",
@@ -108,7 +110,7 @@ export default function NewEventPage() {
   const goNext = () => step < 5 && setStep((step + 1) as Step)
 
   const stepValid: Record<Step, boolean> = {
-    1: draft.title.trim().length > 0 && draft.artists.length > 0 && draft.genres.length > 0,
+    1: draft.title.trim().length > 0 && draft.selectedArtist !== null && draft.genres.length > 0,
     2: draft.place.trim().length > 0 &&
        draft.street.trim().length > 0 &&
        draft.city.trim().length > 0 &&
@@ -142,9 +144,7 @@ export default function NewEventPage() {
         country: draft.country,
         latitude: parseFloat(draft.latitude),
         longitude: parseFloat(draft.longitude),
-        coverImageUrl: draft.posterUrl?.startsWith("data:") ? undefined : draft.posterUrl ?? undefined,
-        artistName: draft.artists[0] || undefined,
-        description: draft.description || undefined,
+        artistId: draft.selectedArtist?.id || undefined,
       })
 
       await publishEvent(created.id)
@@ -269,17 +269,31 @@ function Step1Basic({
   draft: EventDraft
   update: <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => void
 }) {
-  const [artistInput, setArtistInput] = useState("")
+  const [myArtists, setMyArtists] = useState<PromoterArtist[]>([])
+  const [artistQuery, setArtistQuery] = useState("")
+  const [dropdownOpen, setDropdownOpen] = useState(false)
 
-  const addArtist = () => {
-    const name = artistInput.trim()
-    if (!name || draft.artists.includes(name)) return
-    update("artists", [...draft.artists, name])
-    setArtistInput("")
+  // Cargar artistas de la cartera al montar el componente
+  useEffect(() => {
+    getMyArtists()
+      .then(setMyArtists)
+      .catch(() => { /* silenciar errores — no bloquear el formulario */ })
+  }, [])
+
+  const filteredArtists = myArtists.filter((a) =>
+    a.name.toLowerCase().includes(artistQuery.toLowerCase())
+  )
+
+  const selectArtist = (a: PromoterArtist) => {
+    update("selectedArtist", { id: a.id, name: a.name })
+    setArtistQuery("")
+    setDropdownOpen(false)
   }
 
-  const removeArtist = (name: string) =>
-    update("artists", draft.artists.filter((a) => a !== name))
+  const clearArtist = () => {
+    update("selectedArtist", null)
+    setArtistQuery("")
+  }
 
   const toggleGenre = (value: string) =>
     update(
@@ -297,7 +311,7 @@ function Step1Basic({
         montando?
       </h1>
       <p className="mt-3 text-base text-gray-500">
-        Empieza con lo básico: nombre, artistas y estilo.
+        Empieza con lo básico: nombre, artista y estilo.
       </p>
 
       {/* Título */}
@@ -318,51 +332,82 @@ function Step1Basic({
         </div>
       </div>
 
-      {/* Artistas */}
+      {/* Artista — autocompletado desde la cartera */}
       <div className="mt-8">
-        <Label>Artistas</Label>
-        <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-          <div className="flex items-center gap-2">
-            <Music2 className="h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              value={artistInput}
-              onChange={(e) => setArtistInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); addArtist() }
-              }}
-              placeholder="Añadir artista y pulsar Enter"
-              className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
-            />
+        <Label>Artista</Label>
+
+        {draft.selectedArtist ? (
+          /* Chip del artista seleccionado */
+          <div className="mt-2 flex items-center gap-3 rounded-3xl border border-black bg-black px-5 py-4">
+            <Music2 className="h-4 w-4 text-white/70" />
+            <span className="flex-1 text-sm font-bold text-white">
+              {draft.selectedArtist.name}
+            </span>
             <button
-              onClick={addArtist}
-              disabled={!artistInput.trim()}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-white transition-all disabled:bg-gray-200 disabled:text-gray-400"
+              onClick={clearArtist}
+              aria-label="Cambiar artista"
+              className="rounded-full p-0.5 hover:bg-white/20"
             >
-              <Plus className="h-4 w-4" />
+              <X className="h-4 w-4 text-white" />
             </button>
           </div>
-
-          {draft.artists.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {draft.artists.map((a) => (
-                <span
-                  key={a}
-                  className="flex items-center gap-1.5 rounded-full bg-black px-3 py-1.5 text-xs font-bold text-white"
-                >
-                  {a}
-                  <button
-                    onClick={() => removeArtist(a)}
-                    aria-label={`Eliminar ${a}`}
-                    className="ml-0.5 rounded-full hover:bg-white/20"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
+        ) : (
+          /* Campo de búsqueda + dropdown */
+          <div className="relative mt-2">
+            <div className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+              <Music2 className="h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={artistQuery}
+                onChange={(e) => {
+                  setArtistQuery(e.target.value)
+                  setDropdownOpen(true)
+                }}
+                onFocus={() => setDropdownOpen(true)}
+                onBlur={() => setTimeout(() => setDropdownOpen(false), 150)}
+                placeholder="Buscar en tu cartera de artistas…"
+                className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+              />
             </div>
-          )}
-        </div>
+
+            {dropdownOpen && filteredArtists.length > 0 && (
+              <ul className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg">
+                {filteredArtists.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onMouseDown={() => selectArtist(a)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-gray-50"
+                    >
+                      <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-gray-100">
+                        {a.imageUrl && (
+                          <Image
+                            src={a.imageUrl}
+                            alt={a.name}
+                            fill
+                            className="object-cover grayscale"
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold text-black">{a.name}</p>
+                        <p className="truncate text-[10px] font-semibold text-gray-400">
+                          {a.genres.slice(0, 2).join(" · ")}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {dropdownOpen && artistQuery.length > 0 && filteredArtists.length === 0 && (
+              <div className="absolute z-20 mt-2 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-400 shadow-lg">
+                No se encontraron artistas en tu cartera
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Géneros */}
@@ -840,21 +885,14 @@ function Step5Review({
             <p className="text-sm leading-relaxed text-gray-700">{draft.description}</p>
           )}
 
-          {draft.artists.length > 0 && (
+          {draft.selectedArtist && (
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                Artistas
+                Artista
               </p>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {draft.artists.map((a) => (
-                  <span
-                    key={a}
-                    className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-bold text-black"
-                  >
-                    {a}
-                  </span>
-                ))}
-              </div>
+              <span className="mt-1.5 inline-block rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-bold text-black">
+                {draft.selectedArtist.name}
+              </span>
             </div>
           )}
         </div>

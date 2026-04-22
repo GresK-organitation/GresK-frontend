@@ -25,10 +25,7 @@ export interface CreateEventPayload {
   place?: string         // nombre de la sala
   latitude: number
   longitude: number
-  coverImageUrl?: string
-  artistName?: string
-  artistImageUrl?: string
-  description?: string
+  artistId?: string      // UUID del Artist del promotor (opcional)
 }
 
 export interface EventResponse {
@@ -53,6 +50,7 @@ export interface EventResponse {
   latitude: number | null
   longitude: number | null
   coverImageUrl: string | null
+  artistId: string | null
   artistName: string | null
   artistImageUrl: string | null
 }
