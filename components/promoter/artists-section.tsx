@@ -49,16 +49,6 @@ const STATUS_META: Record<ArtistStatus, { label: string; className: string }> =
     },
   }
 
-const GENRE_FILTERS = [
-  "Todos",
-  "Indie",
-  "Electronic",
-  "Folk",
-  "Soul",
-  "House",
-  "Pop",
-]
-
 // ── Sección principal ────────────────────────────────────────────────────────
 
 const ARTISTS_PER_PAGE = 3
@@ -68,7 +58,7 @@ export function ArtistsSection() {
   const [artists, setArtists] = useState<PromoterArtist[]>([])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<ArtistStatus | "all">("all")
-  const [genreFilter, setGenreFilter] = useState("Todos")
+  const [genreFilter, setGenreFilter] = useState("")  // "" = todos los géneros
   const [sortBy, setSortBy] = useState<"name" | "rating" | "events">("name")
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -80,6 +70,12 @@ export function ArtistsSection() {
       .then(setArtists)
       .catch(() => {/* mantener estado vacío en error de red */})
   }, [isLoggedIn])
+
+  // Géneros disponibles derivados de los artistas cargados
+  const availableGenres = useMemo(
+    () => Array.from(new Set(artists.flatMap((a) => a.genres))).sort(),
+    [artists],
+  )
 
   const filtered = useMemo(() => {
     return artists
@@ -93,10 +89,8 @@ export function ArtistsSection() {
         const matchStatus =
           statusFilter === "all" || a.status === statusFilter
         const matchGenre =
-          genreFilter === "Todos" ||
-          a.genres.some((g) =>
-            g.toLowerCase().includes(genreFilter.toLowerCase()),
-          )
+          genreFilter === "" ||
+          a.genres.some((g) => g === genreFilter)
         return matchSearch && matchStatus && matchGenre
       })
       .sort((a, b) => {
@@ -135,13 +129,6 @@ export function ArtistsSection() {
             {artists.length} artistas · {artists.filter((a) => a.status === "confirmed").length} confirmados
           </p>
         </div>
-        <Link
-          href="/promoter/artists/new"
-          className="flex items-center gap-2 rounded-full bg-black px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Nuevo artista
-        </Link>
       </div>
 
       {/* Controles: búsqueda + filtros + orden */}
@@ -185,16 +172,17 @@ export function ArtistsSection() {
 
           <span className="h-4 w-px bg-gray-200" />
 
-          {/* Géneros */}
-          {GENRE_FILTERS.map((g) => (
-            <Pill
-              key={g}
-              active={genreFilter === g}
-              onClick={() => { setGenreFilter(g); setArtistsPage(1) }}
-            >
-              {g}
-            </Pill>
-          ))}
+          {/* Géneros — desplegable dinámico */}
+          <select
+            value={genreFilter}
+            onChange={(e) => { setGenreFilter(e.target.value); setArtistsPage(1) }}
+            className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-black transition-colors hover:border-black focus:outline-none focus:border-black"
+          >
+            <option value="">Todos los géneros</option>
+            {availableGenres.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
 
           <span className="h-4 w-px bg-gray-200" />
 

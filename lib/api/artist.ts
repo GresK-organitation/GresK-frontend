@@ -82,12 +82,10 @@ export interface ArtistDraftPayload {
 }
 
 export async function createArtist(draft: ArtistDraftPayload): Promise<PromoterArtist> {
-  const body = {
+  const payload = {
     name: draft.name,
     origin: draft.origin,
     genres: draft.genres.map((g) => GENRE_TO_ENUM[g]).filter(Boolean),
-    // Send empty string for base64 data URLs — backend ImageUrl VO accepts ""
-    imageUrl: draft.imageUrl && !draft.imageUrl.startsWith("data:") ? draft.imageUrl : "",
     bio: draft.bio,
     status: draft.status.toUpperCase(),
     fee: draft.fee || null,
@@ -98,9 +96,20 @@ export async function createArtist(draft: ArtistDraftPayload): Promise<PromoterA
     spotifyUrl: draft.socialSpotify || null,
   }
 
+  const formData = new FormData()
+  formData.append(
+    "data",
+    new Blob([JSON.stringify(payload)], { type: "application/json" })
+  )
+  // "image" part is omitted — the artist creation page stores the photo as a
+  // base64 data URL which cannot be sent as a multipart file this way.
+  // Image upload support can be added in a future iteration.
+
   const res = await authedFetch("/api/v1/artists", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: formData,
+    // Content-Type is NOT set manually — authedFetch skips it for FormData
+    // so the browser adds the correct multipart/form-data boundary automatically.
   })
 
   if (!res.ok) {
