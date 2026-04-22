@@ -60,9 +60,18 @@ export interface EventResponse {
 // ── Crear evento (DRAFT) ─────────────────────────────────────────────────────
 
 export async function createEvent(payload: CreateEventPayload): Promise<EventResponse> {
+  const formData = new FormData()
+  formData.append(
+    "data",
+    new Blob([JSON.stringify(payload)], { type: "application/json" })
+  )
+  // coverImage y artistImage: el frontend actual no sube archivos reales
+  // (usa data URLs que se descartan antes de llamar aquí), así que no se añaden
+
   const res = await authedFetch("/api/v1/events", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: formData,
+    // No establecer Content-Type manualmente — el browser lo pone con el boundary
   })
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: "Error desconocido" }))
@@ -70,7 +79,6 @@ export async function createEvent(payload: CreateEventPayload): Promise<EventRes
   }
   return res.json()
 }
-
 // ── Publicar evento ──────────────────────────────────────────────────────────
 
 export async function publishEvent(id: string): Promise<EventResponse> {
@@ -118,13 +126,13 @@ export async function getEvents(params?: {
   size?: number
 }): Promise<EventResponse[]> {
   const qs = new URLSearchParams()
-  if (params?.genre)      qs.set("genre",      params.genre)
-  if (params?.city)       qs.set("city",        params.city)
-  if (params?.dateFrom)   qs.set("dateFrom",    params.dateFrom)
-  if (params?.dateTo)     qs.set("dateTo",      params.dateTo)
+  if (params?.genre) qs.set("genre", params.genre)
+  if (params?.city) qs.set("city", params.city)
+  if (params?.dateFrom) qs.set("dateFrom", params.dateFrom)
+  if (params?.dateTo) qs.set("dateTo", params.dateTo)
   if (params?.minPrice != null) qs.set("minPrice", String(params.minPrice))
   if (params?.maxPrice != null) qs.set("maxPrice", String(params.maxPrice))
-  if (params?.artistName) qs.set("artistName",  params.artistName)
+  if (params?.artistName) qs.set("artistName", params.artistName)
   qs.set("page", String(params?.page ?? 0))
   qs.set("size", String(params?.size ?? 50))
 
