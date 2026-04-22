@@ -74,6 +74,7 @@ interface EventDraft {
   time: string
   description: string
   posterUrl: string | null
+  posterFile: File | null
   price: string
   capacity: string
 }
@@ -99,6 +100,7 @@ export default function NewEventPage() {
     time: "",
     description: "",
     posterUrl: null,
+    posterFile: null,
     price: "",
     capacity: "",
   })
@@ -144,7 +146,7 @@ export default function NewEventPage() {
 
       const created = await createEvent({
         title: draft.title,
-        genre: draft.genres[0],        // backend acepta un género
+        genre: draft.genres[0],
         price: parseFloat(draft.price),
         currency: "EUR",
         totalCapacity: parseInt(draft.capacity),
@@ -156,7 +158,7 @@ export default function NewEventPage() {
         latitude: parseFloat(draft.latitude),
         longitude: parseFloat(draft.longitude),
         artistId: draft.selectedArtist?.id || undefined,
-      })
+      }, draft.posterFile ?? undefined)
 
       await publishEvent(created.id)
       router.push("/promoter")
@@ -213,7 +215,7 @@ export default function NewEventPage() {
       <main className="mx-auto max-w-3xl px-6 pb-32 pt-10">
         {step === 1 && <Step1Basic draft={draft} update={update} />}
         {step === 2 && <Step2Place draft={draft} update={update} updateMany={updateMany} />}
-        {step === 3 && <Step3Poster draft={draft} update={update} />}
+        {step === 3 && <Step3Poster draft={draft} update={update} updateMany={updateMany} />}
         {step === 4 && <Step4Tickets draft={draft} update={update} />}
         {step === 5 && <Step5Review draft={draft} onEdit={setStep} />}
       </main>
@@ -668,9 +670,11 @@ function Step2Place({
 function Step3Poster({
   draft,
   update,
+  updateMany,
 }: {
   draft: EventDraft
   update: <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => void
+  updateMany: (partial: Partial<EventDraft>) => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -678,7 +682,7 @@ function Step3Poster({
     const file = e.target.files?.[0]
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => update("posterUrl", reader.result as string)
+    reader.onload = () => updateMany({ posterFile: file, posterUrl: reader.result as string })
     reader.readAsDataURL(file)
   }
 
@@ -722,7 +726,7 @@ function Step3Poster({
                 Reemplazar
               </button>
               <button
-                onClick={() => update("posterUrl", null)}
+                onClick={() => updateMany({ posterUrl: null, posterFile: null })}
                 className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 transition-all hover:border-black hover:text-black"
               >
                 <Trash2 className="h-3 w-3" />

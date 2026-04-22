@@ -57,14 +57,15 @@ export interface EventResponse {
 
 // ── Crear evento (DRAFT) ─────────────────────────────────────────────────────
 
-export async function createEvent(payload: CreateEventPayload): Promise<EventResponse> {
+export async function createEvent(payload: CreateEventPayload, coverImage?: File): Promise<EventResponse> {
   const formData = new FormData()
   formData.append(
     "data",
     new Blob([JSON.stringify(payload)], { type: "application/json" })
   )
-  // coverImage y artistImage: el frontend actual no sube archivos reales
-  // (usa data URLs que se descartan antes de llamar aquí), así que no se añaden
+  if (coverImage) {
+    formData.append("coverImage", coverImage)
+  }
 
   const res = await authedFetch("/api/v1/events", {
     method: "POST",
