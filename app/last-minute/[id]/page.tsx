@@ -25,6 +25,7 @@ import { Navbar } from "@/components/dashboard/navbar"
 
 export default function LastMinuteDetailPage() {
   const { id } = useParams<{ id: string }>()
+
   const [event, setEvent] = useState<EventResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [liked, setLiked] = useState(false)
@@ -287,7 +288,9 @@ export default function LastMinuteDetailPage() {
                   </p>
                 )}
               </div>
-              <button className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-black px-8 py-4 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800">
+              <button
+                className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-black px-8 py-4 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800"
+              >
                 Comprar ahora
                 <Zap className="h-4 w-4" />
               </button>

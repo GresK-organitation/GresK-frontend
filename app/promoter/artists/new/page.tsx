@@ -13,34 +13,66 @@ import {
   MapPin,
   Users,
   Euro,
-  Upload,
   Camera,
   Sparkles,
   Zap,
   Music2,
   X,
   Tag,
-  Trash2,
   Mail,
   Link2,
   ExternalLink,
   Star,
   Pencil,
+  Upload,
+  Trash2,
 } from "lucide-react"
 
-// ── Datos ────────────────────────────────────────────────────────────────────
+// ── Ciudades para selector de origen ────────────────────────────────────────
 
-const GENRES = [
-  "Rock", "Indie", "Pop", "Electrónica", "Techno",
-  "House", "Jazz", "Hip-Hop", "Metal", "Flamenco",
-  "R&B", "Punk", "Trap", "Reggaeton", "Latin Jazz", "Clásica",
+const CITIES: string[] = [
+  // España
+  "Barcelona, ES", "Madrid, ES", "Valencia, ES", "Sevilla, ES",
+  "Bilbao, ES", "Málaga, ES", "Palma, ES", "Las Palmas, ES",
+  "Zaragoza, ES", "A Coruña, ES", "Alicante, ES", "San Sebastián, ES",
+  "Salamanca, ES", "Granada, ES", "Pamplona, ES", "Ibiza, ES",
+  "Valladolid, ES", "Murcia, ES", "Tenerife, ES", "Burgos, ES",
+  // Europa
+  "Lisboa, PT", "Oporto, PT",
+  "París, FR", "Berlín, DE", "Múnich, DE",
+  "Amsterdam, NL", "Londres, GB", "Roma, IT", "Milán, IT",
+  "Bruselas, BE", "Viena, AT", "Estocolmo, SE", "Oslo, NO",
+  // Latam
+  "Ciudad de México, MX", "Buenos Aires, AR",
+  "Bogotá, CO", "Santiago, CL", "Lima, PE", "Medellín, CO",
+]
+
+// ── Géneros (label → valor enum backend) — mismo array que new-event ─────────
+
+const GENRES: { label: string; value: string }[] = [
+  { label: "Rock",        value: "ROCK" },
+  { label: "Indie",       value: "INDIE" },
+  { label: "Pop",         value: "POP" },
+  { label: "Electrónica", value: "ELECTRONIC" },
+  { label: "Techno",      value: "TECHNO" },
+  { label: "House",       value: "HOUSE" },
+  { label: "Jazz",        value: "JAZZ" },
+  { label: "Hip-Hop",     value: "HIP_HOP" },
+  { label: "Metal",       value: "METAL" },
+  { label: "Flamenco",    value: "FLAMENCO" },
+  { label: "R&B",         value: "R_AND_B" },
+  { label: "Punk",        value: "PUNK" },
+  { label: "Trap",        value: "TRAP" },
+  { label: "Reggaeton",   value: "REGGAETON" },
+  { label: "Latin Jazz",  value: "LATIN_JAZZ" },
+  { label: "Clásica",     value: "CLASSICAL" },
 ]
 
 const STATUS_OPTIONS = [
-  { value: "available", label: "Disponible", hint: "Puede ser contratado ahora" },
-  { value: "negotiating", label: "Negociando", hint: "En conversaciones activas" },
-  { value: "confirmed", label: "Confirmado", hint: "Fecha cerrada" },
-  { value: "inactive", label: "Inactivo", hint: "Sin actividad reciente" },
+  { value: "available",   label: "Disponible",  hint: "Puede ser contratado ahora" },
+  { value: "negotiating", label: "Negociando",  hint: "En conversaciones activas" },
+  { value: "confirmed",   label: "Confirmado",  hint: "Fecha cerrada" },
+  { value: "inactive",    label: "Inactivo",    hint: "Sin actividad reciente" },
 ]
 
 const TAG_SUGGESTIONS = [
@@ -54,7 +86,7 @@ type Step = 1 | 2 | 3 | 4
 interface ArtistDraft {
   name: string
   origin: string
-  genres: string[]
+  genres: string[]       // enum values: "ROCK", "INDIE", …
   bio: string
   status: string
   fee: string
@@ -62,7 +94,8 @@ interface ArtistDraft {
   socialSpotify: string
   socialInstagram: string
   followers: string
-  imageUrl: string | null
+  imageFile: File | null
+  imagePreview: string | null
   tags: string[]
 }
 
@@ -89,7 +122,8 @@ export default function NewArtistPage() {
     socialSpotify: "",
     socialInstagram: "",
     followers: "",
-    imageUrl: null,
+    imageFile: null,
+    imagePreview: null,
     tags: [],
   })
 
@@ -224,17 +258,25 @@ function Step1Identity({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const toggleGenre = (g: string) =>
-    update("genres", draft.genres.includes(g)
-      ? draft.genres.filter((x) => x !== g)
-      : [...draft.genres, g])
+  const toggleGenre = (value: string) =>
+    update("genres", draft.genres.includes(value)
+      ? draft.genres.filter((x) => x !== value)
+      : [...draft.genres, value])
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => update("imageUrl", reader.result as string)
-    reader.readAsDataURL(file)
+    // Revocar preview anterior para evitar memory leaks
+    if (draft.imagePreview) URL.revokeObjectURL(draft.imagePreview)
+    update("imageFile", file)
+    update("imagePreview", URL.createObjectURL(file))
+  }
+
+  function clearImage() {
+    if (draft.imagePreview) URL.revokeObjectURL(draft.imagePreview)
+    update("imageFile", null)
+    update("imagePreview", null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   return (
@@ -246,74 +288,96 @@ function Step1Identity({
         Nombre, foto y géneros que lo definen.
       </p>
 
-      {/* Foto */}
-      <div className="mt-10 flex items-start gap-5">
-        <div className="shrink-0">
-          <Label>Foto</Label>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className={`mt-2 relative flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border-2 transition-all ${
-              draft.imageUrl
-                ? "border-black"
-                : "border-dashed border-gray-300 bg-gray-50 hover:border-black"
-            }`}
-          >
-            {draft.imageUrl ? (
-              <>
-                <Image src={draft.imageUrl} alt="Artista" fill className="object-cover grayscale" unoptimized />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 hover:opacity-100 transition-opacity">
-                  <Camera className="h-5 w-5 text-white" />
-                </div>
-              </>
-            ) : (
-              <Camera className="h-6 w-6 text-gray-400" />
-            )}
-          </button>
-          {draft.imageUrl && (
-            <button
-              onClick={() => update("imageUrl", null)}
-              className="mt-1 w-full text-center text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black"
-            >
-              Quitar
-            </button>
-          )}
-        </div>
-
-        {/* Nombre + origen */}
-        <div className="min-w-0 flex-1 space-y-4">
-          <div>
-            <Label>Nombre artístico</Label>
-            <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-              <input
-                type="text"
-                value={draft.name}
-                onChange={(e) => update("name", e.target.value)}
-                placeholder="Ej: Noa Vidal"
-                maxLength={60}
-                className="w-full bg-transparent text-lg font-black text-black placeholder:text-gray-300 focus:outline-none"
-              />
-            </div>
+      {/* Nombre + origen */}
+      <div className="mt-10 space-y-4">
+        <div>
+          <Label>Nombre artístico</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <input
+              type="text"
+              value={draft.name}
+              onChange={(e) => update("name", e.target.value)}
+              placeholder="Ej: Noa Vidal"
+              maxLength={60}
+              className="w-full bg-transparent text-lg font-black text-black placeholder:text-gray-300 focus:outline-none"
+            />
           </div>
-          <div>
-            <Label>Ciudad / Origen</Label>
-            <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
-                <input
-                  type="text"
-                  value={draft.origin}
-                  onChange={(e) => update("origin", e.target.value)}
-                  placeholder="Ej: Barcelona, ES"
-                  className="flex-1 bg-transparent text-sm font-semibold text-black placeholder:text-gray-400 focus:outline-none"
-                />
-              </div>
+        </div>
+        <div>
+          <Label>Ciudad / Origen</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black hover:border-black">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
+              <select
+                value={draft.origin}
+                onChange={(e) => update("origin", e.target.value)}
+                className="flex-1 bg-transparent text-sm font-semibold text-black focus:outline-none"
+              >
+                <option value="" disabled>Selecciona una ciudad…</option>
+                {CITIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Géneros */}
+      {/* Foto — dropzone idéntico a Step3Poster de new-event */}
+      <div className="mt-8">
+        <Label>Foto del artista</Label>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFile}
+          className="hidden"
+        />
+        {draft.imagePreview ? (
+          <div className="mt-2 overflow-hidden rounded-3xl border border-gray-200 bg-white">
+            <div className="relative aspect-[4/5] w-full sm:aspect-video">
+              <img
+                src={draft.imagePreview}
+                alt="Foto artista"
+                className="absolute inset-0 h-full w-full object-cover grayscale"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-2 p-4">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black"
+              >
+                <Upload className="h-3 w-3" />
+                Reemplazar
+              </button>
+              <button
+                onClick={clearImage}
+                className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 transition-all hover:border-black hover:text-black"
+              >
+                <Trash2 className="h-3 w-3" />
+                Eliminar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="mt-2 flex w-full flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-gray-300 bg-white py-14 transition-all hover:border-black hover:bg-gray-50"
+          >
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100">
+              <Camera className="h-6 w-6 text-black" />
+            </div>
+            <p className="text-sm font-bold text-black">
+              Haz click para subir la foto
+            </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+              JPG, PNG · Recomendado 800×800px
+            </p>
+          </button>
+        )}
+      </div>
+
+      {/* Géneros — mismos {label, value} que new-event */}
       <div className="mt-8">
         <div className="mb-2 flex items-center justify-between">
           <Label>Géneros musicales</Label>
@@ -322,19 +386,19 @@ function Step1Identity({
           </span>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-          {GENRES.map((g) => {
-            const sel = draft.genres.includes(g)
+          {GENRES.map(({ label, value }) => {
+            const sel = draft.genres.includes(value)
             return (
               <button
-                key={g}
-                onClick={() => toggleGenre(g)}
+                key={value}
+                onClick={() => toggleGenre(value)}
                 className={`flex items-center justify-between rounded-full border px-4 py-2.5 text-sm font-semibold transition-all ${
                   sel
                     ? "border-black bg-black text-white"
                     : "border-gray-300 bg-white text-black hover:border-black"
                 }`}
               >
-                <span>{g}</span>
+                <span>{label}</span>
                 {sel ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
               </button>
             )
@@ -578,6 +642,9 @@ function Step4Review({
   draft: ArtistDraft
   onEdit: (s: Step) => void
 }) {
+  const genreLabels = draft.genres
+    .map((v) => GENRES.find((g) => g.value === v)?.label ?? v)
+
   return (
     <div>
       <div className="mb-2 flex items-center gap-2">
@@ -595,49 +662,68 @@ function Step4Review({
 
       {/* Preview card */}
       <div className="mt-10 overflow-hidden rounded-3xl border border-gray-200 bg-white">
-        <div className="flex items-start gap-5 p-6">
-          {draft.imageUrl ? (
-            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-gray-200">
-              <Image src={draft.imageUrl} alt={draft.name} fill className="object-cover grayscale" unoptimized />
-            </div>
-          ) : (
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50">
-              <Camera className="h-6 w-6 text-gray-400" />
-            </div>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-2xl font-black text-black">
+        {draft.imagePreview ? (
+          <div className="relative aspect-[16/9] w-full">
+            <img
+              src={draft.imagePreview}
+              alt={draft.name}
+              className="absolute inset-0 h-full w-full object-cover grayscale"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+            <div className="absolute bottom-0 left-0 right-0 p-6">
+              <h2 className="text-3xl font-black leading-tight text-white md:text-4xl">
                 {draft.name || "Sin nombre"}
               </h2>
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-black text-black" />
-                <span className="text-lg font-black text-black">—</span>
-              </div>
-            </div>
-            <p className="mt-1 flex items-center gap-1 text-sm text-gray-500">
-              <MapPin className="h-3.5 w-3.5" />
-              {draft.origin || "Sin ubicación"}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {draft.genres.map((g) => (
-                <span key={g} className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-bold text-gray-700">{g}</span>
-              ))}
+              {draft.origin && (
+                <p className="mt-1 flex items-center gap-1 text-sm font-bold text-white/80">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {draft.origin}
+                </p>
+              )}
             </div>
           </div>
-        </div>
-        {draft.bio && (
-          <div className="border-t border-gray-100 px-6 py-4">
-            <p className="text-sm leading-relaxed text-gray-600">{draft.bio}</p>
+        ) : (
+          <div className="flex h-40 items-center justify-center bg-gray-50">
+            <p className="text-sm font-bold text-gray-400">Sin foto</p>
           </div>
         )}
+
+        <div className="space-y-4 p-6">
+          {genreLabels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {genreLabels.map((g) => (
+                <span key={g} className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-[10px] font-bold text-gray-700">
+                  {g}
+                </span>
+              ))}
+            </div>
+          )}
+          {draft.bio && (
+            <p className="text-sm leading-relaxed text-gray-600">{draft.bio}</p>
+          )}
+        </div>
       </div>
 
       {/* Resumen editable */}
       <div className="mt-8 space-y-3">
-        <SummaryRow icon={Music2} label="Identidad" value={`${draft.name || "—"} · ${draft.genres.length} géneros`} onEdit={() => onEdit(1)} />
-        <SummaryRow icon={Star} label="Perfil profesional" value={`${draft.status} · ${draft.fee || "Sin caché"} · ${draft.tags.length} etiquetas`} onEdit={() => onEdit(2)} />
-        <SummaryRow icon={Mail} label="Contacto y redes" value={draft.contact || "—"} onEdit={() => onEdit(3)} />
+        <SummaryRow
+          icon={Music2}
+          label="Identidad"
+          value={`${draft.name || "—"} · ${draft.genres.length} géneros`}
+          onEdit={() => onEdit(1)}
+        />
+        <SummaryRow
+          icon={Star}
+          label="Perfil profesional"
+          value={`${draft.status} · ${draft.fee || "Sin caché"} · ${draft.tags.length} etiquetas`}
+          onEdit={() => onEdit(2)}
+        />
+        <SummaryRow
+          icon={Mail}
+          label="Contacto y redes"
+          value={draft.contact || "—"}
+          onEdit={() => onEdit(3)}
+        />
       </div>
     </div>
   )

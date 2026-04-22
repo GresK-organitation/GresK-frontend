@@ -1,29 +1,13 @@
 import { authedFetch, ApiException } from "./client"
 import type { PromoterArtist } from "@/lib/mock-data"
 
-// Mapping: display name (frontend) → backend MusicGenre enum name
-const GENRE_TO_ENUM: Record<string, string> = {
-  "Rock": "ROCK",
-  "Pop": "POP",
-  "Indie": "INDIE",
-  "Electrónica": "ELECTRONIC",
-  "Techno": "TECHNO",
-  "House": "HOUSE",
-  "Jazz": "JAZZ",
-  "Hip-Hop": "HIP_HOP",
-  "Metal": "METAL",
-  "Flamenco": "FLAMENCO",
-  "R&B": "R_AND_B",
-  "Punk": "PUNK",
-  "Trap": "TRAP",
-  "Reggaeton": "REGGAETON",
-  "Latin Jazz": "LATIN_JAZZ",
-  "Clásica": "CLASSICAL",
+// Respuesta → label display (para toPromoterArtist)
+const ENUM_TO_GENRE: Record<string, string> = {
+  ROCK: "Rock", POP: "Pop", INDIE: "Indie", ELECTRONIC: "Electrónica",
+  TECHNO: "Techno", HOUSE: "House", JAZZ: "Jazz", HIP_HOP: "Hip-Hop",
+  METAL: "Metal", FLAMENCO: "Flamenco", R_AND_B: "R&B", PUNK: "Punk",
+  TRAP: "Trap", REGGAETON: "Reggaeton", LATIN_JAZZ: "Latin Jazz", CLASSICAL: "Clásica",
 }
-
-const ENUM_TO_GENRE: Record<string, string> = Object.fromEntries(
-  Object.entries(GENRE_TO_ENUM).map(([k, v]) => [v, k])
-)
 
 interface ArtistApiResponse {
   id: string
@@ -69,7 +53,7 @@ function toPromoterArtist(r: ArtistApiResponse): PromoterArtist {
 export interface ArtistDraftPayload {
   name: string
   origin: string
-  genres: string[]
+  genres: string[]       // enum values: "ROCK", "INDIE", …
   bio: string
   status: string
   fee: string
@@ -77,7 +61,7 @@ export interface ArtistDraftPayload {
   socialSpotify: string
   socialInstagram: string
   followers: string
-  imageUrl: string | null
+  imageFile: File | null
   tags: string[]
 }
 
@@ -85,7 +69,7 @@ export async function createArtist(draft: ArtistDraftPayload): Promise<PromoterA
   const payload = {
     name: draft.name,
     origin: draft.origin,
-    genres: draft.genres.map((g) => GENRE_TO_ENUM[g]).filter(Boolean),
+    genres: draft.genres,          // ya son valores enum — no necesitan mapping
     bio: draft.bio,
     status: draft.status.toUpperCase(),
     fee: draft.fee || null,
@@ -101,15 +85,14 @@ export async function createArtist(draft: ArtistDraftPayload): Promise<PromoterA
     "data",
     new Blob([JSON.stringify(payload)], { type: "application/json" })
   )
-  // "image" part is omitted — the artist creation page stores the photo as a
-  // base64 data URL which cannot be sent as a multipart file this way.
-  // Image upload support can be added in a future iteration.
+  if (draft.imageFile) {
+    formData.append("image", draft.imageFile)
+  }
 
   const res = await authedFetch("/api/v1/artists", {
     method: "POST",
     body: formData,
-    // Content-Type is NOT set manually — authedFetch skips it for FormData
-    // so the browser adds the correct multipart/form-data boundary automatically.
+    // Content-Type NO se establece — el browser añade el boundary correcto automáticamente
   })
 
   if (!res.ok) {

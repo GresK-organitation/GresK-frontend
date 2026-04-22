@@ -24,8 +24,9 @@ import {
   Trash2,
   FileText,
   Ticket,
-  Navigation,
+  CheckCircle2,
 } from "lucide-react"
+import { AddressAutofill } from "@mapbox/search-js-react"
 import { createEvent, publishEvent } from "@/lib/api/events"
 import { getMyArtists } from "@/lib/api/artist"
 import type { PromoterArtist } from "@/lib/mock-data"
@@ -105,19 +106,29 @@ export default function NewEventPage() {
   const update = <K extends keyof EventDraft>(key: K, value: EventDraft[K]) =>
     setDraft((p) => ({ ...p, [key]: value }))
 
+  const updateMany = (partial: Partial<EventDraft>) =>
+    setDraft((p) => ({ ...p, ...partial }))
+
   const progressPct = (step / 5) * 100
   const goBack = () => step > 1 && setStep((step - 1) as Step)
   const goNext = () => step < 5 && setStep((step + 1) as Step)
+
+  const todayStr = new Date().toISOString().split("T")[0]
+
+  const dateIsValid =
+    draft.date.length > 0 &&
+    draft.date >= todayStr &&
+    (draft.date > todayStr ||
+      (draft.time.length > 0 &&
+        new Date(`${draft.date}T${draft.time}:00`).getTime() > Date.now()))
 
   const stepValid: Record<Step, boolean> = {
     1: draft.title.trim().length > 0 && draft.selectedArtist !== null && draft.genres.length > 0,
     2: draft.place.trim().length > 0 &&
        draft.street.trim().length > 0 &&
-       draft.city.trim().length > 0 &&
-       draft.country.trim().length > 0 &&
        draft.latitude.trim().length > 0 &&
        draft.longitude.trim().length > 0 &&
-       draft.date.length > 0 &&
+       dateIsValid &&
        draft.time.length > 0,
     3: draft.posterUrl !== null && draft.description.trim().length > 0,
     4: draft.price.trim().length > 0 && draft.capacity.trim().length > 0,
@@ -201,7 +212,7 @@ export default function NewEventPage() {
       {/* ── Contenido ── */}
       <main className="mx-auto max-w-3xl px-6 pb-32 pt-10">
         {step === 1 && <Step1Basic draft={draft} update={update} />}
-        {step === 2 && <Step2Place draft={draft} update={update} />}
+        {step === 2 && <Step2Place draft={draft} update={update} updateMany={updateMany} />}
         {step === 3 && <Step3Poster draft={draft} update={update} />}
         {step === 4 && <Step4Tickets draft={draft} update={update} />}
         {step === 5 && <Step5Review draft={draft} onEdit={setStep} />}
@@ -447,10 +458,56 @@ function Step1Basic({
 function Step2Place({
   draft,
   update,
+  updateMany,
 }: {
   draft: EventDraft
   update: <K extends keyof EventDraft>(k: K, v: EventDraft[K]) => void
+  updateMany: (partial: Partial<EventDraft>) => void
 }) {
+  const accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? ""
+  const todayStr = new Date().toISOString().split("T")[0]
+  const streetInputRef = useRef<HTMLInputElement>(null)
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function handleRetrieve(res: any) {
+    const feature = res?.features?.[0]
+    if (!feature) return
+
+    const [lng, lat] = feature.geometry.coordinates as [number, number]
+    const ctx: Record<string, { name?: string; text?: string }> =
+      feature.properties?.context ?? {}
+
+    // Mapbox puede devolver .name o .text según la versión del API
+    const cityRaw: string =
+      ctx.place?.name ?? ctx.place?.text ??
+      ctx.locality?.name ?? ctx.locality?.text ??
+      ctx.district?.name ?? ctx.district?.text ?? ""
+
+    const countryRaw: string =
+      ctx.country?.name ?? ctx.country?.text ?? ""
+
+    const fullAddress: string =
+      feature.properties?.full_address ??
+      feature.properties?.place_name ??
+      ""
+
+    // Forzar el valor nativo del input antes de que React re-renderice
+    if (streetInputRef.current) {
+      streetInputRef.current.value = fullAddress
+    }
+
+    // Un solo updateMany para que todos los campos se actualicen en el mismo render
+    updateMany({
+      street: fullAddress,
+      city: cityRaw,
+      country: countryRaw,
+      latitude: String(lat),
+      longitude: String(lng),
+    })
+  }
+
+  const locationConfirmed = draft.latitude !== "" && draft.longitude !== ""
+
   return (
     <div>
       <h1 className="text-4xl font-black tracking-tight text-black md:text-5xl">
@@ -464,7 +521,7 @@ function Step2Place({
 
       {/* Sala / place */}
       <div className="mt-10">
-        <Label>Sala / Place</Label>
+        <Label>Sala / Recinto</Label>
         <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-gray-400" />
@@ -479,99 +536,90 @@ function Step2Place({
         </div>
       </div>
 
-      {/* Calle */}
+      {/* Dirección con autocompletado Mapbox */}
       <div className="mt-4">
-        <Label>Calle y número</Label>
-        <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-          <input
-            type="text"
-            value={draft.street}
-            onChange={(e) => update("street", e.target.value)}
-            placeholder="Ej: Carrer Nou de la Rambla, 113"
-            className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
-          />
+        <div className="mb-2 flex items-center justify-between">
+          <Label>Dirección</Label>
+          {locationConfirmed && (
+            <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-black">
+              <CheckCircle2 className="h-3 w-3" />
+              Ubicación confirmada
+            </span>
+          )}
         </div>
-      </div>
-
-      {/* Ciudad + País */}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label>Ciudad</Label>
-          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-            <input
-              type="text"
-              value={draft.city}
-              onChange={(e) => update("city", e.target.value)}
-              placeholder="Ej: Barcelona"
-              className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
-            />
-          </div>
-        </div>
-        <div>
-          <Label>País</Label>
-          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-            <input
-              type="text"
-              value={draft.country}
-              onChange={(e) => update("country", e.target.value)}
-              placeholder="Ej: España"
-              className="w-full bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Coordenadas */}
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-          <Label>Latitud</Label>
-          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+        <AddressAutofill
+          accessToken={accessToken}
+          onRetrieve={handleRetrieve}
+          options={{ language: "es", country: "es,pt,fr,de,gb,it,nl,be,mx,ar,co,cl" }}
+        >
+          <div
+            className={`rounded-3xl border bg-white p-4 transition-all focus-within:border-black ${
+              locationConfirmed ? "border-black" : "border-gray-200"
+            }`}
+          >
             <div className="flex items-center gap-2">
-              <Navigation className="h-4 w-4 text-gray-400" />
+              <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
               <input
-                type="number"
-                step="0.000001"
-                value={draft.latitude}
-                onChange={(e) => update("latitude", e.target.value)}
-                placeholder="Ej: 41.375278"
+                ref={streetInputRef}
+                type="text"
+                autoComplete="address-line1"
+                value={draft.street}
+                onChange={(e) => update("street", e.target.value)}
+                placeholder="Ej: Carrer Nou de la Rambla, 113, Barcelona"
                 className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
               />
+              {locationConfirmed && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    update("street", "")
+                    update("latitude", "")
+                    update("longitude", "")
+                    update("city", "")
+                    update("country", "")
+                  }}
+                  className="shrink-0 text-xs font-bold text-gray-400 hover:text-black"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
-        </div>
-        <div>
-          <Label>Longitud</Label>
-          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
-            <div className="flex items-center gap-2">
-              <Navigation className="h-4 w-4 text-gray-400" />
-              <input
-                type="number"
-                step="0.000001"
-                value={draft.longitude}
-                onChange={(e) => update("longitude", e.target.value)}
-                placeholder="Ej: 2.167778"
-                className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
-              />
-            </div>
-          </div>
-        </div>
+        </AddressAutofill>
+        {!locationConfirmed && draft.street.trim().length > 0 && (
+          <p className="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-400">
+            Selecciona una opción de la lista para confirmar la ubicación
+          </p>
+        )}
       </div>
+
+      {/* Ciudad y país — ocultos, se rellenan automáticamente con Mapbox */}
+      <input type="hidden" value={draft.city} readOnly />
+      <input type="hidden" value={draft.country} readOnly />
 
       {/* Fecha + Hora */}
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <div>
           <Label>Fecha</Label>
-          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+          <div className={`mt-2 rounded-3xl border bg-white p-4 transition-all focus-within:border-black ${
+            draft.date && draft.date < todayStr ? "border-gray-400" : "border-gray-200"
+          }`}>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-gray-400" />
               <input
                 type="date"
                 value={draft.date}
+                min={todayStr}
                 onChange={(e) => update("date", e.target.value)}
                 className="flex-1 bg-transparent text-sm font-semibold text-black focus:outline-none"
               />
             </div>
           </div>
+          {draft.date && draft.date < todayStr && (
+            <p className="mt-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+              La fecha no puede ser en el pasado
+            </p>
+          )}
         </div>
 
         <div>

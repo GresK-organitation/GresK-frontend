@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, type JSX } from "react"
+import { useEffect, useMemo, useState, type JSX } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import {
@@ -17,11 +17,12 @@ import {
   AlertCircle,
   Eye,
   BarChart3,
-  Download,
   Percent,
   Filter,
   Pencil,
   Trash2,
+  Search,
+  CalendarDays,
 } from "lucide-react"
 import { Navbar } from "@/components/dashboard/navbar"
 import { ArtistsSection } from "@/components/promoter/artists-section"
@@ -92,11 +93,19 @@ const STATUS_META: Record<
 const EVENTS_PER_PAGE = 3
 
 export default function PromoterHomePage() {
-  const [filter, setFilter] = useState<"all" | "upcoming" | "completed">("all")
-  const [eventsPage, setEventsPage] = useState(1)
   const [dashboard, setDashboard] = useState<PromoterDashboard | null>(null)
   const [events, setEvents] = useState<PromoterEvent[]>([])
   const [loading, setLoading] = useState(true)
+
+  // ── Filtros historial ──
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<PromoterEventStatus | "all">("all")
+  const [genreFilter, setGenreFilter] = useState("")
+  const [cityFilter, setCityFilter] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
+  const [sortBy, setSortBy] = useState<"date" | "price" | "revenue">("date")
+  const [eventsPage, setEventsPage] = useState(1)
 
   useEffect(() => {
     Promise.all([getPromoterDashboard(), getPromoterEvents()])
@@ -105,15 +114,35 @@ export default function PromoterHomePage() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Valores únicos para selects derivados de los datos cargados
+  const availableGenres = useMemo(
+    () => Array.from(new Set(events.map((e) => e.genre).filter(Boolean))).sort(),
+    [events],
+  )
+  const availableCities = useMemo(
+    () => Array.from(new Set(events.map((e) => e.city).filter(Boolean) as string[])).sort(),
+    [events],
+  )
+
   // ── Historial filtrado ──
-  const history = events
-    .filter((e) => {
-      const s = toFrontendStatus(e.status)
-      if (filter === "upcoming") return ["published", "live"].includes(s)
-      if (filter === "completed") return s === "completed"
-      return true
-    })
-    .sort((a, b) => +new Date(b.eventDate) - +new Date(a.eventDate))
+  const history = useMemo(() => {
+    return events
+      .filter((e) => {
+        const s = toFrontendStatus(e.status)
+        if (statusFilter !== "all" && s !== statusFilter) return false
+        if (search.trim() && !e.title.toLowerCase().includes(search.toLowerCase())) return false
+        if (genreFilter && e.genre !== genreFilter) return false
+        if (cityFilter && e.city !== cityFilter) return false
+        if (dateFrom && e.eventDate < dateFrom) return false
+        if (dateTo && e.eventDate > dateTo + "T23:59:59Z") return false
+        return true
+      })
+      .sort((a, b) => {
+        if (sortBy === "price") return b.price - a.price
+        if (sortBy === "revenue") return b.revenue - a.revenue
+        return +new Date(b.eventDate) - +new Date(a.eventDate)
+      })
+  }, [events, statusFilter, search, genreFilter, cityFilter, dateFrom, dateTo, sortBy])
 
   const totalEventPages = Math.ceil(history.length / EVENTS_PER_PAGE)
   const pagedHistory = history.slice(
@@ -122,6 +151,15 @@ export default function PromoterHomePage() {
   )
 
   const pendingEvents = events.filter((e) => toFrontendStatus(e.status) === "draft")
+
+  function resetFilters() {
+    setSearch(""); setStatusFilter("all"); setGenreFilter("")
+    setCityFilter(""); setDateFrom(""); setDateTo(""); setSortBy("date")
+    setEventsPage(1)
+  }
+
+  const hasActiveFilters =
+    search || statusFilter !== "all" || genreFilter || cityFilter || dateFrom || dateTo
 
   if (loading) {
     return (
@@ -153,10 +191,6 @@ export default function PromoterHomePage() {
               fechas.
             </p>
           </div>
-          <button className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black hover:shadow-lg">
-            <Download className="h-3.5 w-3.5" />
-            Exportar datos
-          </button>
         </section>
 
         {/* ── KPI Stats ────────────────────────────────────── */}
@@ -259,65 +293,194 @@ export default function PromoterHomePage() {
 
         {/* ── Historial ────────────────────────────────────── */}
         <section>
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          {/* Header */}
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                Historial
-              </p>
-              <h2 className="mt-1 text-2xl font-black text-black">
+              <div className="flex items-center gap-2">
+                <CalendarDays className="h-4 w-4 text-black" />
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                  Historial
+                </p>
+              </div>
+              <h2 className="mt-1 text-3xl font-black tracking-tight text-black">
                 Tus eventos
               </h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <Filter className="h-3.5 w-3.5 text-gray-500" />
-              <FilterPill
-                active={filter === "all"}
-                onClick={() => { setFilter("all"); setEventsPage(1) }}
-              >
-                Todos
-              </FilterPill>
-              <FilterPill
-                active={filter === "upcoming"}
-                onClick={() => { setFilter("upcoming"); setEventsPage(1) }}
-              >
-                Próximos
-              </FilterPill>
-              <FilterPill
-                active={filter === "completed"}
-                onClick={() => { setFilter("completed"); setEventsPage(1) }}
-              >
-                Finalizados
-              </FilterPill>
+              <p className="mt-1 text-sm font-medium text-gray-500">
+                {events.length} eventos · {events.filter((e) => toFrontendStatus(e.status) === "published").length} publicados
+              </p>
             </div>
           </div>
 
-          <div className="space-y-4">
-            {pagedHistory.map((event) => (
-              <PromoterEventCard key={event.id} event={event} />
-            ))}
-          </div>
+          {/* Controles: búsqueda + filtros + orden */}
+          <div className="mb-6 space-y-3">
+            {/* Buscador */}
+            <div className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 transition-all focus-within:border-black">
+              <Search className="h-4 w-4 shrink-0 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setEventsPage(1) }}
+                placeholder="Buscar por título…"
+                className="flex-1 bg-transparent text-sm text-black placeholder:text-gray-400 focus:outline-none"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="text-xs font-bold text-gray-400 hover:text-black"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
 
-          {/* Paginación eventos */}
-          {totalEventPages > 1 && (
-            <div className="mt-6 flex items-center justify-center gap-2">
-              <button
-                onClick={() => setEventsPage((p) => Math.max(1, p - 1))}
-                disabled={eventsPage === 1}
-                className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
-              >
-                ← Anterior
-              </button>
-              <span className="text-xs font-bold text-gray-500">
-                {eventsPage} / {totalEventPages}
+            {/* Filtros y orden en fila */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Filter className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+
+              {/* Status */}
+              {(["all", "draft", "published", "live", "completed", "cancelled"] as const).map((s) => (
+                <FilterPill
+                  key={s}
+                  active={statusFilter === s}
+                  onClick={() => { setStatusFilter(s); setEventsPage(1) }}
+                >
+                  {s === "all" ? "Todos" : STATUS_META[s as PromoterEventStatus].label}
+                </FilterPill>
+              ))}
+
+              {availableGenres.length > 0 && (
+                <>
+                  <span className="h-4 w-px bg-gray-200" />
+                  {/* Género */}
+                  <select
+                    value={genreFilter}
+                    onChange={(e) => { setGenreFilter(e.target.value); setEventsPage(1) }}
+                    className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-black transition-colors hover:border-black focus:outline-none focus:border-black"
+                  >
+                    <option value="">Todos los géneros</option>
+                    {availableGenres.map((g) => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              {availableCities.length > 0 && (
+                <>
+                  <span className="h-4 w-px bg-gray-200" />
+                  {/* Ciudad */}
+                  <select
+                    value={cityFilter}
+                    onChange={(e) => { setCityFilter(e.target.value); setEventsPage(1) }}
+                    className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-black transition-colors hover:border-black focus:outline-none focus:border-black"
+                  >
+                    <option value="">Todas las ciudades</option>
+                    {availableCities.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              <span className="h-4 w-px bg-gray-200" />
+
+              {/* Ordenar */}
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                Ordenar:
               </span>
-              <button
-                onClick={() => setEventsPage((p) => Math.min(totalEventPages, p + 1))}
-                disabled={eventsPage === totalEventPages}
-                className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
-              >
-                Siguiente →
-              </button>
+              <FilterPill active={sortBy === "date"} onClick={() => setSortBy("date")}>Fecha</FilterPill>
+              <FilterPill active={sortBy === "price"} onClick={() => setSortBy("price")}>Precio</FilterPill>
+              <FilterPill active={sortBy === "revenue"} onClick={() => setSortBy("revenue")}>Recaudación</FilterPill>
             </div>
+
+            {/* Rango de fechas */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Calendar className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Fechas:</span>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => { setDateFrom(e.target.value); setEventsPage(1) }}
+                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-black transition-colors hover:border-black focus:outline-none focus:border-black"
+              />
+              <span className="text-xs text-gray-400">→</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => { setDateTo(e.target.value); setEventsPage(1) }}
+                className="rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-bold text-black transition-colors hover:border-black focus:outline-none focus:border-black"
+              />
+              {hasActiveFilters && (
+                <button
+                  onClick={resetFilters}
+                  className="ml-auto rounded-full border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-gray-500 hover:border-black hover:text-black"
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Resultados o panel vacío */}
+          {history.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-200 bg-gray-50 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white">
+                <CalendarDays className="h-5 w-5 text-black" />
+              </div>
+              <p className="mt-4 text-lg font-black text-black">Sin resultados</p>
+              <p className="mt-1 text-sm text-gray-500">
+                {hasActiveFilters
+                  ? "Prueba con otros filtros o limpia la búsqueda."
+                  : "Aún no tienes eventos. Crea el primero."}
+              </p>
+              {hasActiveFilters ? (
+                <button
+                  onClick={resetFilters}
+                  className="mt-5 flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-black hover:border-black"
+                >
+                  Limpiar filtros
+                </button>
+              ) : (
+                <Link
+                  href="/promoter/new-event"
+                  className="mt-5 flex items-center gap-1.5 rounded-full bg-black px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-gray-800"
+                >
+                  <Plus className="h-3 w-3" />
+                  Crear evento
+                </Link>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="space-y-4">
+                {pagedHistory.map((event) => (
+                  <PromoterEventCard key={event.id} event={event} />
+                ))}
+              </div>
+
+              {/* Paginación */}
+              {totalEventPages > 1 && (
+                <div className="mt-6 flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => setEventsPage((p) => Math.max(1, p - 1))}
+                    disabled={eventsPage === 1}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
+                  >
+                    ← Anterior
+                  </button>
+                  <span className="text-xs font-bold text-gray-500">
+                    {eventsPage} / {totalEventPages}
+                  </span>
+                  <button
+                    onClick={() => setEventsPage((p) => Math.min(totalEventPages, p + 1))}
+                    disabled={eventsPage === totalEventPages}
+                    className="rounded-full border border-gray-200 px-4 py-2 text-xs font-bold uppercase tracking-widest text-black transition-all hover:border-black disabled:opacity-30"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </section>
 
@@ -331,21 +494,30 @@ export default function PromoterHomePage() {
               <p className="mb-4 text-[10px] font-bold uppercase tracking-widest text-gray-500">
                 Artistas
               </p>
-              <Link href="/promoter/artists/new" className="block">
-                <div className="group flex items-center justify-between rounded-3xl border border-dashed border-gray-300 bg-white p-6 transition-all hover:border-black hover:bg-gray-50 hover:shadow-xl">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black">
-                      <Plus className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-base font-black text-black">Añadir nuevo artista</p>
-                      <p className="text-sm text-gray-500">Gestiona tu cartera de artistas</p>
-                    </div>
+              <Link
+                href="/promoter/artists/new"
+                className="group relative flex flex-col items-start justify-between gap-6 overflow-hidden rounded-3xl border-2 border-dashed border-black bg-white p-8 transition-all hover:bg-gray-50 hover:shadow-xl md:flex-row md:items-center"
+              >
+                <div className="flex items-center gap-5">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-black text-white transition-transform group-hover:rotate-90">
+                    <Plus className="h-7 w-7" />
                   </div>
-                  <div className="hidden items-center gap-2 rounded-full bg-black px-4 py-2 text-sm font-semibold text-white sm:flex">
-                    Añadir <ArrowRight className="h-4 w-4" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      Artistas
+                    </p>
+                    <h2 className="mt-1 text-3xl font-black text-black md:text-4xl">
+                      Añadir nuevo artista
+                    </h2>
+                    <p className="mt-1 max-w-lg text-sm font-medium text-gray-500">
+                      Añade artistas a tu cartera y asígnalos a eventos en segundos.
+                    </p>
                   </div>
                 </div>
+                <span className="flex shrink-0 items-center gap-2 rounded-full bg-black px-6 py-3 text-sm font-bold uppercase tracking-widest text-white transition-transform group-hover:translate-x-1">
+                  Añadir
+                  <ArrowRight className="h-4 w-4" />
+                </span>
               </Link>
             </div>
 

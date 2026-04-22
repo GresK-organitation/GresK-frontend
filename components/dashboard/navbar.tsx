@@ -61,7 +61,7 @@ export function Navbar() {
                   asChild
                   className="rounded-full border border-gray-300 bg-white text-black text-sm font-semibold hover:bg-gray-50 hover:border-black shadow-none"
                 >
-                  <Link href="/promoter">Panel</Link>
+                  <Link href="/promoter">Perfil</Link>
                 </Button>
                 <Button
                   asChild
