@@ -22,7 +22,7 @@ export interface CreateEventPayload {
   street: string
   city: string
   country: string
-  place?: string         // nombre de la sala
+  venue?: string         // nombre de la sala
   latitude: number
   longitude: number
   artistId?: string      // UUID del Artist del promotor (opcional)
@@ -160,6 +160,9 @@ export async function purchaseTicket(eventId: string): Promise<TicketPurchaseRes
     body: JSON.stringify({ eventId }),
   })
   if (!res.ok) {
+    if (res.status === 409) {
+      throw new ApiException(409, "Ya has adquirido una entrada para este evento")
+    }
     const body = await res.json().catch(() => ({ error: "Error desconocido" }))
     throw new ApiException(res.status, body.error ?? "Error al comprar el ticket")
   }

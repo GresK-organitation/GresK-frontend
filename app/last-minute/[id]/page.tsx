@@ -20,15 +20,46 @@ import {
   AlertTriangle,
   Flame,
 } from "lucide-react"
-import { getEvent, type EventResponse } from "@/lib/api/events"
+import { getEvent, purchaseTicket, type EventResponse } from "@/lib/api/events"
 import { Navbar } from "@/components/dashboard/navbar"
+import { useAuth } from "@/lib/auth-context"
+import { useRouter } from "next/navigation"
 
 export default function LastMinuteDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const { isLoggedIn, role } = useAuth()
+  const router = useRouter()
 
-  const [event, setEvent] = useState<EventResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [liked, setLiked] = useState(false)
+  const [event,     setEvent]     = useState<EventResponse | null>(null)
+  const [loading,   setLoading]   = useState(true)
+  const [liked,     setLiked]     = useState(false)
+  const [buying,    setBuying]    = useState(false)
+  const [buyError,  setBuyError]  = useState<string | null>(null)
+  const [authWarn,  setAuthWarn]  = useState(false)
+
+  async function handleBuy() {
+    // No logueado → aviso
+    if (!isLoggedIn || !role) {
+      setAuthWarn(true)
+      return
+    }
+    // Promotor / admin no puede comprar entradas
+    if (role !== "user") {
+      setBuyError("Solo los usuarios pueden comprar entradas.")
+      return
+    }
+    if (!event) return
+    setBuying(true)
+    setBuyError(null)
+    try {
+      const ticket = await purchaseTicket(event.id)
+      router.push(`/tickets/${ticket.id}?eventId=${event.id}`)
+    } catch (e) {
+      setBuyError(e instanceof Error ? e.message : "Error al procesar la compra")
+    } finally {
+      setBuying(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -289,12 +320,47 @@ export default function LastMinuteDetailPage() {
                 )}
               </div>
               <button
-                className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-black px-8 py-4 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800"
+                onClick={handleBuy}
+                disabled={buying || timeLeft.expired}
+                className="flex shrink-0 items-center justify-center gap-2 rounded-full bg-black px-8 py-4 text-sm font-bold uppercase tracking-widest text-white transition-all hover:bg-gray-800 disabled:opacity-50"
               >
-                Comprar ahora
+                {buying ? "Procesando…" : timeLeft.expired ? "Evento finalizado" : "Comprar ahora"}
                 <Zap className="h-4 w-4" />
               </button>
             </div>
+
+            {/* Aviso: no logueado */}
+            {authWarn && (
+              <div className="mt-3 flex items-start gap-3 rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-black" />
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-black">
+                    Debes iniciar sesión o crear una cuenta para comprar tus entradas
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => { setAuthWarn(false); router.push("/") }}
+                      className="rounded-full bg-black px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-white hover:bg-gray-800"
+                    >
+                      Iniciar sesión
+                    </button>
+                    <button
+                      onClick={() => setAuthWarn(false)}
+                      className="rounded-full border border-gray-300 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-black hover:border-black"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Error de compra */}
+            {buyError && (
+              <p className="mt-2 text-xs font-bold text-black">
+                {buyError}
+              </p>
+            )}
           </div>
         </section>
 

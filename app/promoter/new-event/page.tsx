@@ -52,6 +52,29 @@ const GENRES: { label: string; value: string }[] = [
   { label: "Clásica",    value: "CLASSICAL" },
 ]
 
+const COUNTRIES = [
+  "España", "Portugal", "Francia", "Alemania", "Reino Unido", "Italia",
+  "Países Bajos", "Bélgica", "México", "Argentina", "Colombia", "Chile",
+  "Perú", "Venezuela", "Uruguay", "Ecuador", "Bolivia", "Paraguay",
+  "Estados Unidos", "Otro",
+]
+
+const CITIES = [
+  // España
+  "Madrid", "Barcelona", "Valencia", "Sevilla", "Zaragoza", "Málaga",
+  "Murcia", "Palma", "Las Palmas de Gran Canaria", "Bilbao", "Alicante",
+  "Córdoba", "Valladolid", "Vigo", "Gijón", "Granada", "Vitoria-Gasteiz",
+  "A Coruña", "Pamplona", "Santander", "San Sebastián", "Burgos", "Albacete",
+  "Castellón de la Plana", "Logroño", "Salamanca", "Huelva", "Badajoz",
+  "Tarragona", "Lleida", "Marbella", "Ibiza",
+  // Europa
+  "Lisboa", "Porto", "París", "Lyon", "Berlín", "Múnich", "Hamburgo",
+  "Londres", "Manchester", "Roma", "Milán", "Ámsterdam", "Bruselas",
+  // América Latina
+  "Ciudad de México", "Guadalajara", "Monterrey", "Buenos Aires", "Bogotá",
+  "Santiago de Chile", "Lima", "Caracas", "Medellín", "Cali",
+]
+
 const TIME_SLOTS = [
   "18:00", "19:00", "20:00", "21:00", "22:00", "23:00", "00:00", "01:00",
 ]
@@ -128,8 +151,8 @@ export default function NewEventPage() {
     1: draft.title.trim().length > 0 && draft.selectedArtist !== null && draft.genres.length > 0,
     2: draft.place.trim().length > 0 &&
        draft.street.trim().length > 0 &&
-       draft.latitude.trim().length > 0 &&
-       draft.longitude.trim().length > 0 &&
+       draft.city.trim().length > 0 &&
+       draft.country.trim().length > 0 &&
        dateIsValid &&
        draft.time.length > 0,
     3: draft.posterUrl !== null && draft.description.trim().length > 0,
@@ -151,12 +174,12 @@ export default function NewEventPage() {
         currency: "EUR",
         totalCapacity: parseInt(draft.capacity),
         eventDate,
-        place: draft.place || undefined,
+        venue: draft.place || undefined,
         street: draft.street,
         city: draft.city,
         country: draft.country,
-        latitude: parseFloat(draft.latitude),
-        longitude: parseFloat(draft.longitude),
+        latitude: parseFloat(draft.latitude) || 0,
+        longitude: parseFloat(draft.longitude) || 0,
         artistId: draft.selectedArtist?.id || undefined,
       }, draft.posterFile ?? undefined)
 
@@ -475,23 +498,36 @@ function Step2Place({
     const feature = res?.features?.[0]
     if (!feature) return
 
-    const [lng, lat] = feature.geometry.coordinates as [number, number]
-    const ctx: Record<string, { name?: string; text?: string }> =
-      feature.properties?.context ?? {}
+    const lat: number = feature.geometry?.coordinates?.[1] ?? 0
+    const lng: number = feature.geometry?.coordinates?.[0] ?? 0
 
-    // Mapbox puede devolver .name o .text según la versión del API
-    const cityRaw: string =
-      ctx.place?.name ?? ctx.place?.text ??
-      ctx.locality?.name ?? ctx.locality?.text ??
-      ctx.district?.name ?? ctx.district?.text ?? ""
+    const props = feature.properties ?? {}
+    const ctx: Record<string, { name?: string; text?: string }> = props.context ?? {}
 
-    const countryRaw: string =
-      ctx.country?.name ?? ctx.country?.text ?? ""
+    // Ciudad: place > locality > district > region (Madrid es región y ciudad)
+    let city: string =
+      ctx.place?.name     ?? ctx.place?.text     ??
+      ctx.locality?.name  ?? ctx.locality?.text  ??
+      ctx.district?.name  ?? ctx.district?.text  ??
+      ctx.region?.name    ?? ctx.region?.text    ?? ""
 
-    const fullAddress: string =
-      feature.properties?.full_address ??
-      feature.properties?.place_name ??
-      ""
+    // País: context.country.name / .text
+    let country: string = ctx.country?.name ?? ctx.country?.text ?? ""
+
+    // Fallback: parsear place_formatted → "Barcelona, 08004, España"
+    if (!city || !country) {
+      const formatted: string = props.place_formatted ?? ""
+      const parts = formatted.split(",").map((s: string) => s.trim()).filter(Boolean)
+      if (parts.length >= 2) {
+        if (!country) country = parts[parts.length - 1]
+        if (!city) {
+          // Descartar segmentos que sean solo dígitos (códigos postales)
+          city = parts.find((p: string) => !/^\d+$/.test(p)) ?? parts[0]
+        }
+      }
+    }
+
+    const fullAddress: string = props.full_address ?? props.place_name ?? ""
 
     // Forzar el valor nativo del input antes de que React re-renderice
     if (streetInputRef.current) {
@@ -501,8 +537,8 @@ function Step2Place({
     // Un solo updateMany para que todos los campos se actualicen en el mismo render
     updateMany({
       street: fullAddress,
-      city: cityRaw,
-      country: countryRaw,
+      city,
+      country,
       latitude: String(lat),
       longitude: String(lng),
     })
@@ -595,9 +631,49 @@ function Step2Place({
         )}
       </div>
 
-      {/* Ciudad y país — ocultos, se rellenan automáticamente con Mapbox */}
-      <input type="hidden" value={draft.city} readOnly />
-      <input type="hidden" value={draft.country} readOnly />
+      {/* Ciudad y País — se pre-rellenan con Mapbox, editables manualmente */}
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label>Ciudad</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <select
+              value={CITIES.includes(draft.city) ? draft.city : (draft.city ? "__custom__" : "")}
+              onChange={(e) => {
+                if (e.target.value !== "__custom__") update("city", e.target.value)
+              }}
+              className="w-full bg-transparent text-sm font-semibold text-black focus:outline-none"
+            >
+              <option value="">Seleccionar ciudad…</option>
+              {draft.city && !CITIES.includes(draft.city) && (
+                <option value="__custom__">{draft.city}</option>
+              )}
+              {CITIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div>
+          <Label>País</Label>
+          <div className="mt-2 rounded-3xl border border-gray-200 bg-white p-4 transition-all focus-within:border-black">
+            <select
+              value={COUNTRIES.includes(draft.country) ? draft.country : (draft.country ? "__custom__" : "")}
+              onChange={(e) => {
+                if (e.target.value !== "__custom__") update("country", e.target.value)
+              }}
+              className="w-full bg-transparent text-sm font-semibold text-black focus:outline-none"
+            >
+              <option value="">Seleccionar país…</option>
+              {draft.country && !COUNTRIES.includes(draft.country) && (
+                <option value="__custom__">{draft.country}</option>
+              )}
+              {COUNTRIES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
 
       {/* Fecha + Hora */}
       <div className="mt-8 grid gap-4 sm:grid-cols-2">

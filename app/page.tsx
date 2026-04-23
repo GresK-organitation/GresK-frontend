@@ -15,6 +15,7 @@ import {
 import { Navbar } from "@/components/dashboard/navbar"
 import { EventMap, type EventLocation } from "@/components/dashboard/event-map"
 import { getEvents, getLastMinuteEvents, type EventResponse } from "@/lib/api/events"
+import { useAuth } from "@/lib/auth-context"
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -107,6 +108,7 @@ function toLastMinuteCard(e: EventResponse): LastMinuteCardData {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const { isLoggedIn } = useAuth()
   const [mapEvents, setMapEvents] = useState<EventLocation[]>([])
   const [lastMinute, setLastMinute] = useState<LastMinuteCardData[]>([])
 
@@ -182,18 +184,29 @@ export default function HomePage() {
 
             {/* CTAs */}
             <div className="mt-8 flex flex-wrap items-center gap-3">
-              <Link
-                href="/registro"
-                className="rounded-full bg-white px-7 py-3 text-sm font-bold text-black transition-all hover:bg-gray-100"
-              >
-                Crear cuenta →
-              </Link>
-              <Link
-                href="/trabaja-con-nosotros"
-                className="rounded-full border border-white/20 px-7 py-3 text-sm font-bold text-white transition-all hover:border-white/50"
-              >
-                Soy promotora
-              </Link>
+              {isLoggedIn ? (
+                <Link
+                  href="/feed"
+                  className="rounded-full bg-white px-7 py-3 text-sm font-bold text-black transition-all hover:bg-gray-100"
+                >
+                  Perfil →
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/registro"
+                    className="rounded-full bg-white px-7 py-3 text-sm font-bold text-black transition-all hover:bg-gray-100"
+                  >
+                    Crear cuenta →
+                  </Link>
+                  <Link
+                    href="/trabaja-con-nosotros"
+                    className="rounded-full border border-white/20 px-7 py-3 text-sm font-bold text-white transition-all hover:border-white/50"
+                  >
+                    Soy promotora
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </section>

@@ -16,7 +16,7 @@ import {
   type DashboardEvent,
   type UserDashboardResponse,
 } from "@/lib/api/user"
-import { getLastMinuteEvents, type EventResponse }          from "@/lib/api/events"
+import { getEvents, getLastMinuteEvents, type EventResponse } from "@/lib/api/events"
 import { getUserAttendedEvents }                            from "@/lib/api/reviews"
 import {
   formatShortDate,
@@ -73,7 +73,28 @@ export default function FeedPage() {
           getUserAttendedEvents(),
         ])
         setDashboard(dash)
-        setFeaturedEvent(dash.events[0] ?? null)
+
+        // Si el backend no devuelve eventos personalizados (filtro sin match),
+        // usamos el primer evento general publicado como fallback
+        if (dash.events.length > 0) {
+          setFeaturedEvent(dash.events[0])
+        } else {
+          const general = await getEvents({ size: 1 })
+          if (general.length > 0) {
+            const e = general[0]
+            setFeaturedEvent({
+              id:       e.id,
+              title:    e.title,
+              location: e.place ?? e.city ?? "",
+              date:     e.eventDate ?? "",
+              time:     e.eventDate ? new Date(e.eventDate).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) : "",
+              imageUrl: e.coverImageUrl ?? "",
+              category: e.genre ?? "",
+              price:    String(e.amount ?? 0),
+            })
+          }
+        }
+
         setLastMinuteEvents(lastMinute)
 
         setEventsCount(attended.length)
@@ -159,7 +180,7 @@ export default function FeedPage() {
         <div className="min-h-screen bg-white">
             <Navbar />
 
-            <main className="mx-auto max-w-4xl px-4 pt-24 pb-16 md:px-8">
+            <main className="mx-auto max-w-4xl px-4 pt-24 pb-32 md:px-8">
 
                 {/* ── Bienvenida ── */}
                 <div className="mb-4">
@@ -222,7 +243,7 @@ export default function FeedPage() {
                     <div className="mb-5 flex items-center gap-2">
                         <Sparkles className="h-4 w-4 text-black" />
                         <span className="text-xs font-bold uppercase tracking-widest text-black">
-              Tu siguiente concierto
+              Te podría interesar
             </span>
                     </div>
 

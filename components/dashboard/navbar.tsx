@@ -72,6 +72,15 @@ export function Navbar() {
               </>
             )}
 
+            {isLoggedIn && !isPromoter && !isAdmin && (
+              <Button
+                asChild
+                className="rounded-full border border-gray-300 bg-white text-black text-sm font-semibold hover:bg-gray-50 hover:border-black shadow-none"
+              >
+                <Link href="/feed">Perfil</Link>
+              </Button>
+            )}
+
             {!isLoggedIn && (
               <Button
                 onClick={() => setAuthOpen(true)}

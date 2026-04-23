@@ -14,8 +14,8 @@ export interface DashboardEvent {
 }
 
 export interface DashboardMusic {
-  title:      string
-  artist:     string
+  trackName:  string   // campo real del backend
+  artistName: string   // campo real del backend
   spotifyUrl: string
   imageUrl:   string
   genre:      string
